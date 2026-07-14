@@ -35,7 +35,7 @@ export default function MainPage() {
   const [activeTab, setActiveTab] = useState<"mine" | "peer">("mine");
   const [connected, setConnected] = useState(true);
   const [checkingSlotId, setCheckingSlotId] = useState<string | null>(null);
-  const [editor, setEditor] = useState<{ open: boolean; slot?: Slot }>({ open: false });
+  const [editor, setEditor] = useState<{ open: boolean; slot?: PlanSlot }>({ open: false });
   const [checkinDialog, setCheckinDialog] = useState<{ open: boolean; slot?: PlanSlot }>({
     open: false,
   });
@@ -157,7 +157,7 @@ export default function MainPage() {
     }
   }
 
-  async function handleSaveSlot(data: Omit<Slot, "id">) {
+  async function handleSaveSlot(data: Omit<Slot, "id"> & { note?: string | null }) {
     if (!myPlan) return;
     const prev = myPlan;
     let updatedSlots: PlanSlot[];
@@ -168,10 +168,12 @@ export default function MainPage() {
     } else {
       const newSlot: PlanSlot = {
         id: crypto.randomUUID(),
-        ...data,
+        task: data.task,
+        start_time: data.start_time,
+        end_time: data.end_time,
         done: false,
         checked_at: null,
-        note: null,
+        note: data.note ?? null,
         photo_url: null,
       };
       updatedSlots = [...myPlan.slots, newSlot];

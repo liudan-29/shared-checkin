@@ -19,7 +19,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
-import type { Slot } from "@/lib/types";
+import type { PlanSlot, Slot } from "@/lib/types";
 
 export type SlotEditorTarget = "today" | "template";
 
@@ -36,13 +36,14 @@ export function SlotEditorSheet({
   onOpenChange: (open: boolean) => void;
   mode: "add" | "edit";
   target: SlotEditorTarget;
-  initial?: Slot;
-  onSave: (data: Omit<Slot, "id">) => void;
+  initial?: Slot | PlanSlot;
+  onSave: (data: Omit<Slot, "id"> & { note?: string | null }) => void;
   onDelete?: () => void;
 }) {
   const [task, setTask] = useState(initial?.task ?? "");
   const [startTime, setStartTime] = useState(initial?.start_time ?? "");
   const [endTime, setEndTime] = useState(initial?.end_time ?? "");
+  const [note, setNote] = useState((initial as PlanSlot)?.note ?? "");
   const [taskError, setTaskError] = useState(false);
   const [timeError, setTimeError] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
@@ -52,6 +53,7 @@ export function SlotEditorSheet({
       setTask(initial?.task ?? "");
       setStartTime(initial?.start_time ?? "");
       setEndTime(initial?.end_time ?? "");
+      setNote((initial as PlanSlot)?.note ?? "");
       setTaskError(false);
       setTimeError(false);
     }
@@ -67,7 +69,12 @@ export function SlotEditorSheet({
 
   function handleSave() {
     if (!validate()) return;
-    onSave({ task: task.trim(), start_time: startTime, end_time: endTime });
+    onSave({
+      task: task.trim(),
+      start_time: startTime,
+      end_time: endTime,
+      ...(target === "today" ? { note: note.trim() || null } : {}),
+    });
     onOpenChange(false);
   }
 
@@ -138,6 +145,25 @@ export function SlotEditorSheet({
               <div className="-mt-2 flex items-center gap-1 text-sm text-danger">
                 <CircleAlert className="h-3.5 w-3.5" />
                 结束要晚于开始
+              </div>
+            )}
+
+            {target === "today" && (
+              <div className="flex flex-col gap-2">
+                <Label htmlFor="note">备注（选填）</Label>
+                <div className="relative">
+                  <textarea
+                    id="note"
+                    value={note}
+                    onChange={(e) => setNote(e.target.value.slice(0, 40))}
+                    placeholder="做了什么"
+                    rows={2}
+                    className="w-full resize-none rounded-md border-0 bg-secondary px-3 py-2 text-lg font-body text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  />
+                  <span className="pointer-events-none absolute bottom-2 right-3 text-sm text-muted-foreground">
+                    {note.length}/40
+                  </span>
+                </div>
               </div>
             )}
 
