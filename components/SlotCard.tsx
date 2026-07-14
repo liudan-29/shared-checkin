@@ -40,10 +40,10 @@ export function SlotCard({
 
   return (
     <div
-      onClick={variant === "mine" && !isDone ? onEdit : undefined}
+      onClick={variant === "mine" ? onEdit : undefined}
       className={cn(
         "relative flex min-h-[80px] items-center gap-3 rounded-lg bg-card p-4 shadow-sm transition-colors duration-fast",
-        variant === "mine" && !isDone && "cursor-pointer active:bg-popover"
+        variant === "mine" && "cursor-pointer active:bg-popover"
       )}
       style={{
         border: isInProgress ? "1.5px solid var(--color-accent)" : undefined,
@@ -69,7 +69,7 @@ export function SlotCard({
           }}
         >
           <span className="truncate">{slot.task}</span>
-          {variant === "mine" && !isDone && (
+          {variant === "mine" && (
             <Pencil className="h-3.5 w-3.5 shrink-0 text-muted-foreground" aria-hidden />
           )}
         </p>
