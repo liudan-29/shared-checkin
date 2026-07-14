@@ -21,3 +21,12 @@
 ### 下一步
 
 引导用户建 Supabase 项目、拿到 URL 和 anon key，然后本地初始化 Next.js。
+
+## 2026-07-14 17:39
+
+- Vercel注册被风控拦截（登录页要求account recovery form），放弃，改走GitHub Pages
+- next.config.mjs加GITHUB_PAGES=true条件分支：output export + basePath /shared-checkin + trailingSlash，本地dev不受影响
+- 新增npm run build:pages脚本；out/加.nojekyll防止Pages吃掉_next目录
+- 产物42MB（大头是文楷字体分包），推送gh-pages分支两次超时，后台重推成功
+- 仓库已改公开（用户确认过），Pages网址 https://liudan-29.github.io/shared-checkin/ 已上线，首页/登录页200，无控制台报错
+- 后续每次更新：npm run build:pages后把out/重新推gh-pages分支

@@ -1,5 +1,6 @@
 "use client";
 
+import { Pencil } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { PlanSlot } from "@/lib/types";
 import type { SlotStatus } from "@/lib/slot-status";
@@ -62,12 +63,15 @@ export function SlotCard({
           {isOverdue && overdueText && <DelayTag minutesText={overdueText} />}
         </div>
         <p
-          className="mt-1 truncate font-display text-lg"
+          className="mt-1 flex items-center gap-2 font-display text-lg"
           style={{
             color: isDone ? "var(--color-text-secondary)" : "var(--color-text-primary)",
           }}
         >
-          {slot.task}
+          <span className="truncate">{slot.task}</span>
+          {variant === "mine" && !isDone && (
+            <Pencil className="h-3.5 w-3.5 shrink-0 text-muted-foreground" aria-hidden />
+          )}
         </p>
         {isDone && slot.checked_at && (
           <p className="mt-2 font-mono text-sm text-muted-foreground">
