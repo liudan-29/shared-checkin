@@ -26,7 +26,7 @@ export function PunchStrip({
             backgroundColor:
               status === "done"
                 ? "var(--color-accent)"
-                : status === "overdue"
+                : status === "overdue" || status === "missed"
                 ? "var(--color-danger)"
                 : "transparent",
             border:

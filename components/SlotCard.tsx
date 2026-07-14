@@ -6,8 +6,10 @@ import type { PlanSlot } from "@/lib/types";
 import type { SlotStatus } from "@/lib/slot-status";
 import { StatusPill } from "./StatusPill";
 import { DelayTag } from "./DelayTag";
+import { HistoryTag } from "./HistoryTag";
 import { CheckButton } from "./CheckButton";
 import { CompletionStamp } from "./CompletionStamp";
+import { MissedMark } from "./MissedMark";
 
 function formatTime(iso: string | null): string {
   if (!iso) return "";
@@ -20,6 +22,8 @@ export function SlotCard({
   variant,
   status,
   overdueText,
+  lateText,
+  mode = "live",
   onCheck,
   onUncheck,
   onEdit,
@@ -29,21 +33,43 @@ export function SlotCard({
   variant: "mine" | "peer";
   status: SlotStatus;
   overdueText: string | null;
+  lateText?: string | null;
+  mode?: "live" | "readonly" | "preview";
   onCheck?: () => void;
   onUncheck?: () => void;
   onEdit?: () => void;
   checking?: boolean;
 }) {
+  // 未来预览：无结果区，内容占满，虚线边框
+  if (mode === "preview") {
+    return (
+      <div
+        className="flex min-h-[64px] flex-col justify-center rounded-lg p-4"
+        style={{ border: "1.5px dashed var(--color-border-default)" }}
+      >
+        <span className="font-mono text-lg text-muted-foreground">
+          {slot.start_time}–{slot.end_time}
+        </span>
+        <span className="mt-1 truncate font-display text-lg text-muted-foreground">
+          {slot.task}
+        </span>
+      </div>
+    );
+  }
+
+  const isReadonly = mode === "readonly";
   const isOverdue = status === "overdue";
   const isInProgress = status === "in-progress";
   const isDone = status === "done";
+  const isMissed = status === "missed";
+  const clickable = mode === "live" && variant === "mine";
 
   return (
     <div
-      onClick={variant === "mine" ? onEdit : undefined}
+      onClick={clickable ? onEdit : undefined}
       className={cn(
         "relative flex min-h-[80px] items-center gap-3 rounded-lg bg-card p-4 shadow-sm transition-colors duration-fast",
-        variant === "mine" && "cursor-pointer active:bg-popover"
+        clickable && "cursor-pointer active:bg-popover"
       )}
       style={{
         border: isInProgress ? "1.5px solid var(--color-accent)" : undefined,
@@ -61,6 +87,8 @@ export function SlotCard({
           </span>
           {isInProgress && <StatusPill />}
           {isOverdue && overdueText && <DelayTag minutesText={overdueText} />}
+          {isMissed && <HistoryTag kind="missed" text="未完成" />}
+          {isReadonly && isDone && lateText && <HistoryTag kind="late" text={lateText} />}
         </div>
         <p
           className="mt-1 flex items-center gap-2 font-display text-lg"
@@ -69,7 +97,7 @@ export function SlotCard({
           }}
         >
           <span className="truncate">{slot.task}</span>
-          {variant === "mine" && (
+          {clickable && (
             <Pencil className="h-3.5 w-3.5 shrink-0 text-muted-foreground" aria-hidden />
           )}
         </p>
@@ -79,7 +107,7 @@ export function SlotCard({
           </p>
         )}
         {isDone && slot.note && (
-          <p className="mt-1 truncate text-sm text-secondary-foreground text-muted-foreground">
+          <p className="mt-1 truncate text-sm text-muted-foreground">
             {slot.note}
           </p>
         )}
@@ -89,7 +117,13 @@ export function SlotCard({
         className="flex w-14 shrink-0 items-center justify-center"
         onClick={(e) => e.stopPropagation()}
       >
-        {variant === "mine" ? (
+        {isReadonly ? (
+          isDone ? (
+            <CompletionStamp checkedAt={slot.checked_at} />
+          ) : (
+            <MissedMark />
+          )
+        ) : variant === "mine" ? (
           isDone ? (
             <CompletionStamp checkedAt={slot.checked_at} clickable onUncheck={onUncheck} />
           ) : (

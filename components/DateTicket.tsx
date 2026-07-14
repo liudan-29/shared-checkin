@@ -1,8 +1,9 @@
 "use client";
 
-import { NotebookPen, LogOut } from "lucide-react";
+import { NotebookPen, LogOut, BarChart3, ChevronLeft, ChevronRight, Lock, Eye } from "lucide-react";
 import { PunchStrip } from "./PunchStrip";
 import type { SlotStatus } from "@/lib/slot-status";
+import type { DateMode } from "@/lib/preview-plan";
 import {
   DropdownMenu,
   DropdownMenuTrigger,
@@ -14,17 +15,29 @@ const WEEKDAY_NAMES = ["周日", "周一", "周二", "周三", "周四", "周五
 
 export function DateTicket({
   date,
+  mode,
+  viewedDayType,
   myStatuses,
   doneCount,
   totalCount,
+  onPrev,
+  onNext,
+  onJumpToday,
   onOpenTemplate,
+  onOpenSummary,
   onLogout,
 }: {
   date: Date;
+  mode: DateMode;
+  viewedDayType: "weekday" | "weekend";
   myStatuses: SlotStatus[];
   doneCount: number;
   totalCount: number;
+  onPrev: () => void;
+  onNext: () => void;
+  onJumpToday: () => void;
   onOpenTemplate: () => void;
+  onOpenSummary: () => void;
   onLogout: () => void;
 }) {
   return (
@@ -34,11 +47,19 @@ export function DateTicket({
           <span className="font-display text-2xl text-foreground">
             {date.getMonth() + 1}月{date.getDate()}日
           </span>
-          <span className="text-lg text-secondary-foreground text-muted-foreground">
+          <span className="text-lg text-muted-foreground">
             {WEEKDAY_NAMES[date.getDay()]}
           </span>
         </div>
         <div className="flex items-center gap-1">
+          <button
+            type="button"
+            onClick={onOpenSummary}
+            aria-label="查看总结"
+            className="flex h-10 w-10 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-secondary active:scale-[0.92]"
+          >
+            <BarChart3 className="h-5 w-5" />
+          </button>
           <button
             type="button"
             onClick={onOpenTemplate}
@@ -67,14 +88,62 @@ export function DateTicket({
         </div>
       </div>
 
-      <div
-        className="my-3"
-        style={{ borderTop: "1px dashed var(--color-border-default)" }}
-      />
+      {/* 导航行 */}
+      <div className="mt-2 flex h-11 items-center justify-between">
+        <button
+          type="button"
+          onClick={onPrev}
+          aria-label="前一天"
+          className="flex h-11 w-11 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-secondary active:scale-[0.92]"
+        >
+          <ChevronLeft className="h-5 w-5" />
+        </button>
+
+        <div className="flex items-center gap-3">
+          {mode !== "today" && (
+            <span
+              className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-sm text-muted-foreground"
+              style={{ backgroundColor: "var(--color-bg-tertiary)" }}
+            >
+              {mode === "past" ? (
+                <>
+                  <Lock className="h-3 w-3" />
+                  只读
+                </>
+              ) : (
+                <>
+                  <Eye className="h-3 w-3" />
+                  预览·{viewedDayType === "weekend" ? "周末" : "工作日"}模板
+                </>
+              )}
+            </span>
+          )}
+          {mode !== "today" && (
+            <button
+              type="button"
+              onClick={onJumpToday}
+              className="text-sm text-ink transition-colors hover:text-ink-hover active:scale-[0.96]"
+            >
+              回到今天
+            </button>
+          )}
+        </div>
+
+        <button
+          type="button"
+          onClick={onNext}
+          aria-label="后一天"
+          className="flex h-11 w-11 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-secondary active:scale-[0.92]"
+        >
+          <ChevronRight className="h-5 w-5" />
+        </button>
+      </div>
+
+      <div className="my-3" style={{ borderTop: "1px dashed var(--color-border-default)" }} />
 
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <span className="text-sm text-muted-foreground">今日</span>
+          <span className="text-sm text-muted-foreground">进度</span>
           <PunchStrip statuses={myStatuses} />
         </div>
         <span className="font-mono text-base font-semibold text-foreground">

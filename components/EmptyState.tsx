@@ -11,7 +11,7 @@ export function EmptyStateMine({
   return (
     <div className="flex flex-col items-center gap-3 py-12">
       <CalendarX2 className="h-12 w-12 text-muted-foreground" />
-      <p className="text-base text-secondary-foreground text-muted-foreground">
+      <p className="text-base text-muted-foreground">
         今天还没有安排
       </p>
       <div className="flex gap-3">
@@ -41,4 +41,37 @@ export function EmptyStateTemplate() {
       这份模板还是空的
     </p>
   );
+}
+
+function EmptyReadonlyBase({ text }: { text: string }) {
+  return (
+    <div className="flex flex-col items-center gap-3 py-12">
+      <CalendarX2 className="h-12 w-12 text-muted-foreground" />
+      <p className="text-base text-muted-foreground">{text}</p>
+    </div>
+  );
+}
+
+export function EmptyStateReadonlyMine() {
+  return <EmptyReadonlyBase text="这天没有安排记录" />;
+}
+
+export function EmptyStateReadonlyPeer() {
+  return <EmptyReadonlyBase text="TA这天没有安排记录" />;
+}
+
+export function EmptyStatePreviewMine({ onEditTemplate }: { onEditTemplate: () => void }) {
+  return (
+    <div className="flex flex-col items-center gap-3 py-12">
+      <CalendarX2 className="h-12 w-12 text-muted-foreground" />
+      <p className="text-base text-muted-foreground">这天的模板还没排时段</p>
+      <Button size="sm" variant="secondary" onClick={onEditTemplate}>
+        去编辑模板
+      </Button>
+    </div>
+  );
+}
+
+export function EmptyStatePreviewPeer() {
+  return <EmptyReadonlyBase text="TA这天的模板还没排时段" />;
 }
