@@ -102,4 +102,6 @@ day_plans
 
 ## 历次踩坑
 
+- **next build会清空out/连带out/.git**：gh-pages分支的产物仓库放在out/里，每次`npm run build:pages`后out/.git就没了，此时在out/里跑git命令会静默落到父仓库(源码仓库)上，提交错地方。部署一律用`bash scripts/deploy-pages.sh`，它每次在out/里重新init再强推，不要手工在out/里敲git
+
 - **Next.js CLI在这台机器上跑telemetry会报EXDEV跨盘符rename错误**：`next dev`/`next build`/`next telemetry disable`只要涉及写`C:\Users\刘丹\AppData\Roaming\nextjs-nodejs\Config\config.json`就崩，报`EXDEV: cross-device link not permitted`。原因未查（大概率AppData\Roaming被重定向到了别的卷）。解决：package.json的dev/build/start脚本都用`cross-env NEXT_TELEMETRY_DISABLED=1`包一层，跳过整个telemetry写入路径。禁止依赖`next telemetry disable`命令本身，它也会触发同样的崩溃

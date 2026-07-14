@@ -30,3 +30,8 @@
 - 产物42MB（大头是文楷字体分包），推送gh-pages分支两次超时，后台重推成功
 - 仓库已改公开（用户确认过），Pages网址 https://liudan-29.github.io/shared-checkin/ 已上线，首页/登录页200，无控制台报错
 - 后续每次更新：npm run build:pages后把out/重新推gh-pages分支
+
+## 2026-07-14 17:48
+
+- 用户反馈找不到编辑/删除入口（功能在但无提示），SlotCard任务名后加铅笔图标（仅自己的未完成时段显示）
+- 踩坑：next build清空out/连带out/.git，在out/里跑git会落到父仓库。已写scripts/deploy-pages.sh一键部署并记入CLAUDE.md
