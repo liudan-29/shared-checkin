@@ -104,7 +104,8 @@
 - `supabase/schema.sql`第8节新增`messages`表(`sender_id`+`content`+`created_at`)，RLS读全开、insert/delete限本人，开了Realtime(配合"对方新留言能实时飘出来"的效果，不用等对方主动刷新)
 - `lib/types.ts`加`Message`类型
 - `lib/messages.ts`：`fetchRecentMessages`(限制条数)、`postMessage`、`subscribeNewMessages`(实时订阅新留言)
-- 已派ui-designer出v5方案(`docs/ui-20260714-shared-checkin-v5.md`，进行中，还没拿到结果)：留言板固定位置、飘过动效具体规格、写留言入口、空状态、`prefers-reduced-motion`降级
+- 已派ui-designer出v5方案(`docs/ui-20260714-shared-checkin-v5.md`)：留言板固定位置、飘过动效具体规格、写留言入口、空状态、`prefers-reduced-motion`降级
+  - 踩坑：第一次派工(19:33前后)中途不明原因被终止("已被用户停止，不会再恢复"，双方都没意识到有这个操作)，等了近40分钟没结果，SendMessage催问才发现任务已经没了不是卡住。20:11用同样的需求重新派了一次(新agent)。以后派长任务后如果等待时间明显超过历史耗时区间，要主动催问确认任务还活着，不要一直傻等
 
 **待完成**：ui-designer v5方案审核 → UI组件实现(飘过效果的展示组件、写留言弹窗、按钮) → 接入`app/page.tsx` → 数据库迁移(用户需要重新跑一遍`schema.sql`，这次新增了messages表) → 验证部署
 

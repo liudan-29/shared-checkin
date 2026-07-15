@@ -24,7 +24,7 @@ import {
   type DateMode,
 } from "@/lib/preview-plan";
 import { computeDaySummary } from "@/lib/day-summary";
-import type { DayPlan, PlanSlot, Profile, Slot } from "@/lib/types";
+import type { DayPlan, Message, PlanSlot, Profile, Slot } from "@/lib/types";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Skeleton } from "@/components/ui/skeleton";
 import { DateTicket } from "@/components/DateTicket";
@@ -43,6 +43,9 @@ import { SlotEditorSheet } from "@/components/SlotEditorSheet";
 import { CheckInDialog } from "@/components/CheckInDialog";
 import { SummarySheet } from "@/components/SummarySheet";
 import { DateJumpSheet } from "@/components/DateJumpSheet";
+import { MessageBoard, type MessageView } from "@/components/MessageBoard";
+import { MessageComposerDialog } from "@/components/MessageComposerDialog";
+import { fetchRecentMessages, postMessage, subscribeNewMessages } from "@/lib/messages";
 import type { NoteEntry } from "@/components/SummaryNotesList";
 
 const TODAY = getTodayDateString();
@@ -72,6 +75,10 @@ export default function MainPage() {
   });
   const [summaryOpen, setSummaryOpen] = useState(false);
   const [dateJumpOpen, setDateJumpOpen] = useState(false);
+  const [rawMessages, setRawMessages] = useState<Message[]>([]);
+  const [messagesLoading, setMessagesLoading] = useState(true);
+  const [composerOpen, setComposerOpen] = useState(false);
+  const [composerSubmitting, setComposerSubmitting] = useState(false);
 
   const disconnectTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -172,6 +179,58 @@ export default function MainPage() {
       supabase.removeChannel(channel);
     };
   }, [user, isToday]);
+
+  // 留言板：跟viewDate/dateMode完全无关，固定加载，不随翻看历史/未来变化
+  useEffect(() => {
+    if (!user) return;
+    let cancelled = false;
+    setMessagesLoading(true);
+    fetchRecentMessages()
+      .then((data) => {
+        if (!cancelled) setRawMessages(data);
+      })
+      .finally(() => {
+        if (!cancelled) setMessagesLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [user]);
+
+  useEffect(() => {
+    if (!user) return;
+    return subscribeNewMessages((msg) => {
+      // 自己发的留言会先被本地乐观更新加进去，Realtime广播会给发送者自己也推一份，
+      // 这里按id去重，避免同一条留言在列表里出现两次
+      setRawMessages((prev) => (prev.some((m) => m.id === msg.id) ? prev : [msg, ...prev].slice(0, 20)));
+    });
+  }, [user]);
+
+  const messageViews: MessageView[] = useMemo(
+    () =>
+      rawMessages.map((m) => ({
+        id: m.id,
+        content: m.content,
+        authorLabel: user && m.sender_id === user.id ? "我" : peer?.name ?? "TA",
+        isMine: user ? m.sender_id === user.id : false,
+      })),
+    [rawMessages, user, peer]
+  );
+
+  async function handlePostMessage(content: string) {
+    if (!user) return;
+    setComposerSubmitting(true);
+    try {
+      const created = await postMessage(user.id, content);
+      setRawMessages((prev) => (prev.some((m) => m.id === created.id) ? prev : [created, ...prev].slice(0, 20)));
+      setComposerOpen(false);
+      toast.success("已发布");
+    } catch {
+      toast.error("发布没同步上", { action: { label: "重试", onClick: () => handlePostMessage(content) } });
+    } finally {
+      setComposerSubmitting(false);
+    }
+  }
 
   // eslint-disable-next-line react-hooks/exhaustive-deps -- tick 只用来触发每分钟重算，无需读取
   const now = useMemo(() => new Date(), [tick]);
@@ -384,6 +443,15 @@ export default function MainPage() {
         </div>
       )}
 
+      {/* 留言板：固定存在，不随viewDate/dateMode/tab切换而变化或消失 */}
+      <div className="mt-4">
+        <MessageBoard
+          messages={messageViews}
+          loading={messagesLoading}
+          onWriteClick={() => setComposerOpen(true)}
+        />
+      </div>
+
       {/* 移动端：分段切换 */}
       <div className="mt-4 md:hidden">
         <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as "mine" | "peer")}>
@@ -456,6 +524,13 @@ export default function MainPage() {
         onConfirm={(note) => {
           if (checkinDialog.slot) handleCheck(checkinDialog.slot, note);
         }}
+      />
+
+      <MessageComposerDialog
+        open={composerOpen}
+        onOpenChange={setComposerOpen}
+        submitting={composerSubmitting}
+        onSubmit={handlePostMessage}
       />
 
       <SummarySheet

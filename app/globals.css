@@ -107,6 +107,24 @@ body {
   font-family: var(--font-body);
 }
 
+/* 留言板飘动动效：起止位置由MessageBoard内联style动态设置（依赖文字实际渲染宽度，不能硬编码百分比） */
+@keyframes float-message {
+  0% {
+    transform: translate(var(--float-start-x), -50%);
+    opacity: 0;
+  }
+  12% {
+    opacity: 1;
+  }
+  88% {
+    opacity: 1;
+  }
+  100% {
+    transform: translate(var(--float-end-x), -50%);
+    opacity: 0;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
