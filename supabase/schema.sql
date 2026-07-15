@@ -111,3 +111,33 @@ begin
   end if;
 end
 $$;
+
+-- 7. PDCA周期目标与复盘表：每人每周一条，goals装两种目标(整体完成率/具体任务)，
+-- review_note是Act阶段的自由文本复盘。不开Realtime，对方刷新页面即可看到最新。
+create table if not exists public.weekly_reviews (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references public.users(id) on delete cascade,
+  week_start date not null,
+  goals jsonb not null default '[]'::jsonb,
+  review_note text,
+  updated_at timestamptz not null default now(),
+  unique (user_id, week_start)
+);
+
+alter table public.weekly_reviews enable row level security;
+
+drop policy if exists "authed_read_weekly_reviews" on public.weekly_reviews;
+create policy "authed_read_weekly_reviews" on public.weekly_reviews
+  for select to authenticated using (true);
+
+drop policy if exists "insert_own_weekly_review" on public.weekly_reviews;
+create policy "insert_own_weekly_review" on public.weekly_reviews
+  for insert to authenticated with check (auth.uid() = user_id);
+
+drop policy if exists "update_own_weekly_review" on public.weekly_reviews;
+create policy "update_own_weekly_review" on public.weekly_reviews
+  for update to authenticated using (auth.uid() = user_id);
+
+drop policy if exists "delete_own_weekly_review" on public.weekly_reviews;
+create policy "delete_own_weekly_review" on public.weekly_reviews
+  for delete to authenticated using (auth.uid() = user_id);

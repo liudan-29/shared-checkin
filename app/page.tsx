@@ -7,8 +7,7 @@ import { toast } from "sonner";
 import { getSupabase } from "@/lib/supabase";
 import { useSession } from "@/lib/use-session";
 import { fetchProfiles } from "@/lib/profiles";
-import { ensureDayPlan, fetchDayPlan, saveDayPlanSlots } from "@/lib/day-plan";
-import { fetchTemplate } from "@/lib/templates";
+import { ensureDayPlan, fetchDaySlotsForDate, saveDayPlanSlots } from "@/lib/day-plan";
 import {
   getSlotStatus,
   getSlotStatusForDate,
@@ -22,7 +21,6 @@ import {
   addDays,
   dayTypeOf,
   parseDateString,
-  slotsToPreviewPlanSlots,
   type DateMode,
 } from "@/lib/preview-plan";
 import { computeDaySummary } from "@/lib/day-summary";
@@ -90,18 +88,14 @@ export default function MainPage() {
   }, [sessionLoading, session, router]);
 
   // 载入某一侧某天的数据。今天可写用 ensureDayPlan 建行；过去只读取；未来从模板生成预览
+  // 只读分支复用 fetchDaySlotsForDate（和周报页面共用同一份"历史/未来怎么取数据"的逻辑）
   const loadSide = useCallback(
     async (uid: string, date: string, mode: DateMode, writable: boolean): Promise<SideView> => {
-      if (mode === "future") {
-        const tpl = await fetchTemplate(uid, dayTypeOf(parseDateString(date)));
-        return { slots: slotsToPreviewPlanSlots(tpl?.slots ?? []), exists: false, planId: null };
-      }
       if (mode === "today" && writable) {
         const plan = await ensureDayPlan(uid, date, dayTypeOf(parseDateString(date)));
         return { slots: plan.slots, exists: true, planId: plan.id };
       }
-      const plan = await fetchDayPlan(uid, date);
-      return { slots: plan?.slots ?? [], exists: !!plan, planId: plan?.id ?? null };
+      return fetchDaySlotsForDate(uid, date, mode === "today" ? "current" : mode);
     },
     []
   );
@@ -374,6 +368,7 @@ export default function MainPage() {
         onOpenTemplate={() => router.push("/template")}
         onOpenSummary={() => setSummaryOpen(true)}
         onOpenDateJump={() => setDateJumpOpen(true)}
+        onOpenWeekly={() => router.push("/weekly")}
         onLogout={handleLogout}
         prevDisabled={viewDate <= MIN_DATE}
         nextDisabled={viewDate >= MAX_DATE}

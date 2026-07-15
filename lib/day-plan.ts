@@ -1,5 +1,6 @@
 import { getSupabase } from "./supabase";
 import { fetchTemplate } from "./templates";
+import { dayTypeOf, parseDateString, slotsToPreviewPlanSlots } from "./preview-plan";
 import type { DayPlan, DayType, PlanSlot } from "./types";
 
 // 只为当前登录用户自建当天计划（RLS只允许写自己的行）；查别人的当天计划若不存在直接返回 null
@@ -13,6 +14,24 @@ export async function fetchDayPlan(userId: string, date: string): Promise<DayPla
     .maybeSingle();
   if (error) throw error;
   return data as DayPlan | null;
+}
+
+export type DaySlotsResult = { slots: PlanSlot[]; exists: boolean; planId: string | null };
+
+// 只读辅助：过去的日期查真实记录、未来的日期按模板生成预览。不做建行副作用——
+// ensureDayPlan的"今天首次访问建行"逻辑不在这里，调用方自己决定要不要写。
+// 被主视图(过去/未来分支)和周报页面(整周7天读取)共用，避免两处各写一份同样的分支逻辑。
+export async function fetchDaySlotsForDate(
+  userId: string,
+  date: string,
+  mode: "past" | "current" | "future"
+): Promise<DaySlotsResult> {
+  if (mode === "future") {
+    const tpl = await fetchTemplate(userId, dayTypeOf(parseDateString(date)));
+    return { slots: slotsToPreviewPlanSlots(tpl?.slots ?? []), exists: false, planId: null };
+  }
+  const plan = await fetchDayPlan(userId, date);
+  return { slots: plan?.slots ?? [], exists: !!plan, planId: plan?.id ?? null };
 }
 
 export async function ensureDayPlan(

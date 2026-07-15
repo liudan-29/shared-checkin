@@ -1,4 +1,10 @@
-export function AddSlotRow({ onClick }: { onClick: () => void }) {
+export function AddSlotRow({
+  onClick,
+  label = "＋ 添加时段",
+}: {
+  onClick: () => void;
+  label?: string;
+}) {
   return (
     <button
       type="button"
@@ -8,7 +14,7 @@ export function AddSlotRow({ onClick }: { onClick: () => void }) {
       onMouseEnter={(e) => (e.currentTarget.style.borderColor = "var(--color-accent)")}
       onMouseLeave={(e) => (e.currentTarget.style.borderColor = "var(--color-border-default)")}
     >
-      ＋ 添加时段
+      {label}
     </button>
   );
 }

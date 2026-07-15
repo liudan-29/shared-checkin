@@ -1,6 +1,6 @@
 "use client";
 
-import { NotebookPen, LogOut, BarChart3, ChevronLeft, ChevronRight, Lock, Eye, CalendarDays } from "lucide-react";
+import { NotebookPen, LogOut, BarChart3, ChevronLeft, ChevronRight, Lock, Eye, CalendarDays, Target } from "lucide-react";
 import { PunchStrip } from "./PunchStrip";
 import type { SlotStatus } from "@/lib/slot-status";
 import type { DateMode } from "@/lib/preview-plan";
@@ -26,6 +26,7 @@ export function DateTicket({
   onOpenTemplate,
   onOpenSummary,
   onOpenDateJump,
+  onOpenWeekly,
   onLogout,
   prevDisabled,
   nextDisabled,
@@ -42,6 +43,7 @@ export function DateTicket({
   onOpenTemplate: () => void;
   onOpenSummary: () => void;
   onOpenDateJump: () => void;
+  onOpenWeekly: () => void;
   onLogout: () => void;
   prevDisabled?: boolean;
   nextDisabled?: boolean;
@@ -71,6 +73,14 @@ export function DateTicket({
             className="flex h-10 w-10 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-secondary active:scale-[0.92]"
           >
             <BarChart3 className="h-5 w-5" />
+          </button>
+          <button
+            type="button"
+            onClick={onOpenWeekly}
+            aria-label="本周PDCA周报"
+            className="flex h-10 w-10 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-secondary active:scale-[0.92]"
+          >
+            <Target className="h-5 w-5" />
           </button>
           <button
             type="button"
