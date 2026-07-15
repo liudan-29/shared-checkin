@@ -1,6 +1,6 @@
 "use client";
 
-import { NotebookPen, LogOut, BarChart3, ChevronLeft, ChevronRight, Lock, Eye } from "lucide-react";
+import { NotebookPen, LogOut, BarChart3, ChevronLeft, ChevronRight, Lock, Eye, CalendarDays } from "lucide-react";
 import { PunchStrip } from "./PunchStrip";
 import type { SlotStatus } from "@/lib/slot-status";
 import type { DateMode } from "@/lib/preview-plan";
@@ -25,7 +25,10 @@ export function DateTicket({
   onJumpToday,
   onOpenTemplate,
   onOpenSummary,
+  onOpenDateJump,
   onLogout,
+  prevDisabled,
+  nextDisabled,
 }: {
   date: Date;
   mode: DateMode;
@@ -38,19 +41,28 @@ export function DateTicket({
   onJumpToday: () => void;
   onOpenTemplate: () => void;
   onOpenSummary: () => void;
+  onOpenDateJump: () => void;
   onLogout: () => void;
+  prevDisabled?: boolean;
+  nextDisabled?: boolean;
 }) {
   return (
     <div className="rounded-lg bg-card p-4 shadow-md">
       <div className="flex items-center justify-between">
-        <div className="flex items-baseline gap-2">
+        <button
+          type="button"
+          onClick={onOpenDateJump}
+          aria-label="选择日期"
+          className="-my-1 -ml-1 flex items-baseline gap-1 rounded-md py-1 pl-1 pr-2 transition-transform duration-fast ease-default hover:bg-secondary active:scale-[0.98]"
+        >
           <span className="font-display text-2xl text-foreground">
             {date.getMonth() + 1}月{date.getDate()}日
           </span>
           <span className="text-lg text-muted-foreground">
             {WEEKDAY_NAMES[date.getDay()]}
           </span>
-        </div>
+          <CalendarDays className="h-3.5 w-3.5 self-center text-muted-foreground" aria-hidden />
+        </button>
         <div className="flex items-center gap-1">
           <button
             type="button"
@@ -93,8 +105,9 @@ export function DateTicket({
         <button
           type="button"
           onClick={onPrev}
+          disabled={prevDisabled}
           aria-label="前一天"
-          className="flex h-11 w-11 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-secondary active:scale-[0.92]"
+          className="flex h-11 w-11 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-secondary active:scale-[0.92] disabled:pointer-events-none disabled:opacity-35"
         >
           <ChevronLeft className="h-5 w-5" />
         </button>
@@ -132,8 +145,9 @@ export function DateTicket({
         <button
           type="button"
           onClick={onNext}
+          disabled={nextDisabled}
           aria-label="后一天"
-          className="flex h-11 w-11 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-secondary active:scale-[0.92]"
+          className="flex h-11 w-11 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-secondary active:scale-[0.92] disabled:pointer-events-none disabled:opacity-35"
         >
           <ChevronRight className="h-5 w-5" />
         </button>

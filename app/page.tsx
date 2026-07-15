@@ -44,9 +44,12 @@ import {
 import { SlotEditorSheet } from "@/components/SlotEditorSheet";
 import { CheckInDialog } from "@/components/CheckInDialog";
 import { SummarySheet } from "@/components/SummarySheet";
+import { DateJumpSheet } from "@/components/DateJumpSheet";
 import type { NoteEntry } from "@/components/SummaryNotesList";
 
 const TODAY = getTodayDateString();
+const MIN_DATE = addDays(TODAY, -180);
+const MAX_DATE = addDays(TODAY, 90);
 
 // 一侧的视图数据：显示用 slots + 该天是否有真实记录 + 今天可写时的 planId
 type SideView = { slots: PlanSlot[]; exists: boolean; planId: string | null };
@@ -70,6 +73,7 @@ export default function MainPage() {
     open: false,
   });
   const [summaryOpen, setSummaryOpen] = useState(false);
+  const [dateJumpOpen, setDateJumpOpen] = useState(false);
 
   const disconnectTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -364,12 +368,15 @@ export default function MainPage() {
         myStatuses={myStatuses}
         doneCount={doneCount}
         totalCount={mySlots.length}
-        onPrev={() => setViewDate((d) => addDays(d, -1))}
-        onNext={() => setViewDate((d) => addDays(d, 1))}
+        onPrev={() => setViewDate((d) => (d <= MIN_DATE ? d : addDays(d, -1)))}
+        onNext={() => setViewDate((d) => (d >= MAX_DATE ? d : addDays(d, 1)))}
         onJumpToday={() => setViewDate(TODAY)}
         onOpenTemplate={() => router.push("/template")}
         onOpenSummary={() => setSummaryOpen(true)}
+        onOpenDateJump={() => setDateJumpOpen(true)}
         onLogout={handleLogout}
+        prevDisabled={viewDate <= MIN_DATE}
+        nextDisabled={viewDate >= MAX_DATE}
       />
 
       {!connected && isToday && (
@@ -466,6 +473,16 @@ export default function MainPage() {
         mineExists={myView.exists}
         peerExists={peerView.exists}
         notes={noteEntries}
+      />
+
+      <DateJumpSheet
+        open={dateJumpOpen}
+        onOpenChange={setDateJumpOpen}
+        viewDate={viewDate}
+        todayDate={TODAY}
+        minDate={MIN_DATE}
+        maxDate={MAX_DATE}
+        onSelectDate={(d) => setViewDate(d)}
       />
     </main>
   );
