@@ -56,3 +56,11 @@
   - 自查发现一处防御性漏洞：`persistMySlots`/`handleCheck`原来只判断`myView.planId`非空就允许写库，但过去日期如果曾经打过卡本来就有`planId`，只是UI没做入口点不到；已加`isToday`显式拦截，写函数自己兜底不靠"按钮没做"这层防护
   - 顺手清理一处死代码：`text-secondary-foreground text-muted-foreground`两个类叠加，后者靠tailwind.config书写顺序覆盖前者，前者是死类，涉及6个文件
 - 已构建部署上线，`https://liudan-29.github.io/shared-checkin/`
+
+## 2026-07-15 08:16
+
+- 用户反馈只能逐天翻页不够用，想直接选日期。派ui-designer出v3方案（`docs/ui-20260714-shared-checkin-v3.md`）：自定义月历网格（不用原生input，避免和暖纸+印章风格冲突），点DateTicket的日期文字触发，和前后箭头并存互补
+- 用户拍板：可选范围过去180天、未来90天（按方案默认值）
+- 实现：新增`lib/calendar-grid.ts`（月历网格生成、月份加减、边界判断）、`components/MonthGrid.tsx`、`components/DateJumpSheet.tsx`；`DateTicket.tsx`日期区域改按钮+日历图标；前后箭头补上边界disabled（v2设计时就预留了这个视觉规格，只是当时没有边界数据，这次一起接上）
+- 本体自查（没有再派code-reviewer，参照上一轮踩坑）：跨年跨月的月份加减用`new Date(year, month±1, day)`让JS自动进位，验证过12月+1和1月-1都正确；日期字符串比较（`YYYY-MM-DD`)天然可当字符串排序判断范围，没有用错方法
+- 已构建部署上线，用户验证通过
