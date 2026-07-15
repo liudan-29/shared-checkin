@@ -73,3 +73,12 @@
   - 之前误写进本体记忆（`C:\Users\刘丹\.claude\projects\D---Project\memory\`）的两条同主题记忆已删除，避免和规则文档重复或冲突
 - 产出使用手册（用户要求的"通俗易懂一看就懂"的产品说明），落盘`docs/user-guide.html`，发布为Artifact：`https://claude.ai/code/artifact/083e0874-8dc1-4595-a36d-7e9b5e498162`。视觉延续项目自己的"打卡钟与印章"设计系统（token直接复用v1文档的配色），内容覆盖概览/快速开始/打卡/产出记录/拖延/看对方进度/历史未来导航/每日总结/模板/FAQ
   - 用户指出手册漏了"产出记录"（打卡时写的备注）能不能事后编辑这一点没说清楚，补充：备注随时能改不是写一次锁死；同时补了两处遗漏——退出登录入口、"连接断了正在重连"提示是什么意思
+
+## 2026-07-15 09:xx～16:58（PDCA周期目标与汇报功能）
+
+- 用户看到PDCA(Plan-Do-Check-Act)管理法的帖子，想加到App里：设周目标、按周看达成情况、写复盘、能生成分享图。用Plan Mode走完整流程：先派一个Plan agent设计实现方案（数据模型/周聚合计算/分享图技术选型/页面信息架构），我审核方案后问了3个关键决策（目标能不能中途改/分享图含不含对方数据/目标各自独立还是共用），用户确认后写入正式plan文件、ExitPlanMode拿到执行授权
+- 数据层：`supabase/schema.sql`加`weekly_reviews`表(user_id+week_start唯一约束，goals jsonb+review_note，不开Realtime)；`lib/types.ts`加`CycleGoal`/`WeeklyReview`(踩坑：`CycleGoal`是判别联合类型，`Omit<CycleGoal,"id">`会因为keyof对union取交集而把非公共字段全部塌缩掉，改成单独定义`NewCycleGoal`绕开这个问题)；新增`lib/week.ts`(周日期工具)、`lib/week-summary.ts`(周聚合统计，组合调用既有`computeDaySummary`不重写单日逻辑)、`lib/weekly-reviews.ts`(CRUD)；`lib/day-plan.ts`抽出`fetchDaySlotsForDate`只读函数给主视图和周报共用
+- 派ui-designer出v4方案(`docs/ui-20260714-shared-checkin-v4.md`)：新页面`/weekly`，目标三态标签(进行中/达成/未达标，未达标沿用HistoryTag中性灰不用danger红)、周对比表、分享卡片(撕票边缘+印章式完成率徽章)
+- 分享图片：装了`html-to-image`依赖，`lib/share-image.ts`封装（离屏DOM转PNG、下载、Web Share API能力检测降级）。`ShareCard.tsx`是专用截图卡片，全部样式内联`style`直接锚定CSS变量，不依赖body的全局背景继承（否则导出图片背景会是透明/白色）
+- 分两批派code-reviewer（数据层一批、UI一批，接上一轮"大批量容易撞session limit"的教训）：数据层直接✅通过，只给了一条建议（任务目标如果这周一次都没排上、周已过完时`achieved`不该停在null永远"进行中"，已修）；UI批发现两处真bug——`ReviewSection.tsx`误用不存在的Tailwind类`bg-tertiary`导致对方复盘卡片背景丢失(改成内联style)、`GoalEditorSheet.tsx`具体任务类型下没选任务就点保存会静默死点击(补上禁用判断)，都已修复
+- 已构建部署上线，`https://liudan-29.github.io/shared-checkin/`。分享图片功能在真实设备(尤其微信内置浏览器)上的兼容性还没验证，需要用户自己测
