@@ -1,0 +1,468 @@
+<title>双人打卡 使用手册</title>
+
+<style>
+  :root {
+    --paper: #f4efe6;
+    --card: #fcf9f2;
+    --card-elevated: #fffefb;
+    --ink: #2b2620;
+    --ink-soft: #5f574b;
+    --ink-mute: #7c7160;
+    --ink-on-accent: #fdfaf3;
+    --border: #dfd6c4;
+    --border-subtle: #ece5d7;
+    --accent: #26428b;
+    --accent-hover: #1d3470;
+    --accent-subtle: rgba(38, 66, 139, 0.08);
+    --danger: #ba3d23;
+    --danger-subtle: rgba(186, 61, 35, 0.1);
+    --shadow-sm: 0 1px 2px rgba(43, 38, 32, 0.06);
+    --shadow-md: 0 2px 10px rgba(43, 38, 32, 0.08);
+    --shadow-lg: 0 10px 28px rgba(43, 38, 32, 0.14);
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --paper: #1c1815;
+      --card: #262019;
+      --card-elevated: #2f281f;
+      --ink: #f0eae0;
+      --ink-soft: #c4baa8;
+      --ink-mute: #8f8574;
+      --ink-on-accent: #fdfaf3;
+      --border: #3a332a;
+      --border-subtle: #322b23;
+      --accent: #7b95d6;
+      --accent-hover: #93aae0;
+      --accent-subtle: rgba(123, 149, 214, 0.14);
+      --danger: #e28468;
+      --danger-subtle: rgba(226, 132, 104, 0.16);
+      --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
+      --shadow-md: 0 2px 10px rgba(0, 0, 0, 0.35);
+      --shadow-lg: 0 10px 28px rgba(0, 0, 0, 0.5);
+    }
+  }
+  :root[data-theme="dark"] {
+    --paper: #1c1815;
+    --card: #262019;
+    --card-elevated: #2f281f;
+    --ink: #f0eae0;
+    --ink-soft: #c4baa8;
+    --ink-mute: #8f8574;
+    --ink-on-accent: #fdfaf3;
+    --border: #3a332a;
+    --border-subtle: #322b23;
+    --accent: #7b95d6;
+    --accent-hover: #93aae0;
+    --accent-subtle: rgba(123, 149, 214, 0.14);
+    --danger: #e28468;
+    --danger-subtle: rgba(226, 132, 104, 0.16);
+    --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
+    --shadow-md: 0 2px 10px rgba(0, 0, 0, 0.35);
+    --shadow-lg: 0 10px 28px rgba(0, 0, 0, 0.5);
+  }
+  :root[data-theme="light"] {
+    --paper: #f4efe6;
+    --card: #fcf9f2;
+    --card-elevated: #fffefb;
+    --ink: #2b2620;
+    --ink-soft: #5f574b;
+    --ink-mute: #7c7160;
+    --ink-on-accent: #fdfaf3;
+    --border: #dfd6c4;
+    --border-subtle: #ece5d7;
+    --accent: #26428b;
+    --accent-hover: #1d3470;
+    --accent-subtle: rgba(38, 66, 139, 0.08);
+    --danger: #ba3d23;
+    --danger-subtle: rgba(186, 61, 35, 0.1);
+    --shadow-sm: 0 1px 2px rgba(43, 38, 32, 0.06);
+    --shadow-md: 0 2px 10px rgba(43, 38, 32, 0.08);
+    --shadow-lg: 0 10px 28px rgba(43, 38, 32, 0.14);
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    background-color: var(--paper);
+    background-image: radial-gradient(rgba(128, 115, 95, 0.12) 1px, transparent 1px);
+    background-size: 20px 20px;
+    color: var(--ink);
+    font-family: "PingFang SC", "Microsoft YaHei", -apple-system, sans-serif;
+    line-height: 1.7;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .wrap { max-width: 720px; margin: 0 auto; padding: 56px 20px 96px; }
+
+  /* ---- 头部：印章徽标 ---- */
+  .hero { display: flex; flex-direction: column; align-items: center; text-align: center; margin-bottom: 48px; }
+  .stamp {
+    width: 64px; height: 64px; border-radius: 8px; background: var(--danger);
+    display: flex; align-items: center; justify-content: center;
+    transform: rotate(-4deg); box-shadow: var(--shadow-md); margin-bottom: 20px;
+  }
+  .stamp-inner {
+    width: calc(100% - 10px); height: calc(100% - 10px); border-radius: 6px;
+    border: 1.5px solid var(--ink-on-accent);
+    display: flex; align-items: center; justify-content: center;
+  }
+  .stamp-inner span {
+    writing-mode: vertical-rl; color: var(--ink-on-accent);
+    font-size: 20px; letter-spacing: 2px;
+  }
+  .hero h1 { font-size: 26px; font-weight: 700; margin: 0 0 6px; text-wrap: balance; }
+  .hero p { color: var(--ink-soft); font-size: 15px; margin: 0; }
+  .hero .url {
+    margin-top: 18px; font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+    font-size: 13px; color: var(--accent); background: var(--accent-subtle);
+    padding: 6px 14px; border-radius: 999px;
+  }
+
+  /* ---- 打孔分隔线，呼应票据头 ---- */
+  .punch-divider { border: none; border-top: 1px dashed var(--border); margin: 44px 0; }
+
+  section h2 {
+    font-size: 19px; font-weight: 700; margin: 0 0 6px;
+    display: flex; align-items: baseline; gap: 10px;
+  }
+  section h2 .eyebrow {
+    font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+    font-size: 12px; color: var(--ink-mute); font-weight: 500; letter-spacing: 0.02em;
+  }
+  section > .lead { color: var(--ink-soft); font-size: 14.5px; margin: 0 0 20px; max-width: 62ch; }
+
+  .card {
+    background: var(--card); border-radius: 12px; box-shadow: var(--shadow-sm);
+    padding: 18px 20px; margin-bottom: 14px;
+  }
+  .card h3 { font-size: 15.5px; font-weight: 600; margin: 0 0 6px; }
+  .card p { font-size: 14px; color: var(--ink-soft); margin: 0; }
+  .card p + p { margin-top: 6px; }
+
+  /* ---- 快速开始：编号步骤 ---- */
+  .steps { display: flex; flex-direction: column; gap: 14px; }
+  .step { display: flex; gap: 14px; align-items: flex-start; }
+  .step-num {
+    flex-shrink: 0; width: 30px; height: 30px; border-radius: 999px;
+    background: var(--accent); color: var(--ink-on-accent);
+    display: flex; align-items: center; justify-content: center;
+    font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+    font-size: 13px; font-weight: 700;
+  }
+  .step-body h3 { font-size: 15px; font-weight: 600; margin: 0 0 3px; }
+  .step-body p { font-size: 14px; color: var(--ink-soft); margin: 0; }
+
+  /* ---- 功能区两栏：文字 + 小样 ---- */
+  .feature {
+    display: grid; grid-template-columns: 1fr 200px; gap: 20px; align-items: start;
+    margin-bottom: 28px;
+  }
+  .feature-text h3 { font-size: 15.5px; font-weight: 600; margin: 0 0 6px; }
+  .feature-text p { font-size: 14px; color: var(--ink-soft); margin: 0 0 8px; }
+  .feature-text ul { margin: 8px 0 0; padding-left: 18px; }
+  .feature-text li { font-size: 13.5px; color: var(--ink-soft); margin-bottom: 4px; }
+  .feature-mock { display: flex; justify-content: center; }
+
+  @media (max-width: 560px) {
+    .feature { grid-template-columns: 1fr; }
+    .feature-mock { justify-content: flex-start; }
+  }
+
+  /* ---- 时段卡小样 ---- */
+  .mock-slotcard {
+    width: 100%; max-width: 200px; background: var(--card); border-radius: 10px;
+    box-shadow: var(--shadow-sm); padding: 12px 14px; font-size: 12px;
+  }
+  .mock-slotcard .time {
+    font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+    font-weight: 600; color: var(--ink);
+  }
+  .mock-slotcard .task { margin-top: 4px; color: var(--ink); font-size: 13px; }
+  .mock-row { display: flex; align-items: center; justify-content: space-between; }
+  .mock-check {
+    width: 30px; height: 30px; border-radius: 999px; border: 1.5px solid var(--border);
+    flex-shrink: 0; display: flex; align-items: center; justify-content: center;
+    color: var(--ink-mute); font-size: 14px;
+  }
+  .mock-stamp {
+    width: 34px; height: 34px; border-radius: 999px; border: 2px solid var(--accent);
+    color: var(--accent); flex-shrink: 0; display: flex; align-items: center;
+    justify-content: center; font-size: 10px; font-weight: 700; transform: rotate(-8deg);
+  }
+  .mock-delay {
+    display: inline-flex; align-items: center; gap: 4px; font-size: 11px;
+    background: var(--danger-subtle); color: var(--danger); border: 1px dashed var(--danger);
+    border-radius: 4px; padding: 2px 7px; transform: rotate(-2deg); margin-top: 6px;
+  }
+
+  /* ---- 打孔进度条小样 ---- */
+  .mock-strip { display: flex; gap: 6px; }
+  .mock-dot { width: 11px; height: 11px; border-radius: 3px; border: 1.5px solid var(--border); }
+  .mock-dot.done { background: var(--accent); border-color: var(--accent); }
+  .mock-dot.missed { background: var(--danger); border-color: var(--danger); }
+
+  /* ---- 日期导航小样 ---- */
+  .mock-datebar {
+    width: 100%; max-width: 200px; background: var(--card); border-radius: 10px;
+    box-shadow: var(--shadow-sm); padding: 12px 14px;
+  }
+  .mock-datebar .row1 { display: flex; justify-content: space-between; align-items: baseline; font-size: 13px; font-weight: 700; }
+  .mock-datebar .badge {
+    display: inline-flex; align-items: center; gap: 3px; font-size: 10.5px;
+    background: var(--border-subtle); color: var(--ink-mute); border-radius: 999px;
+    padding: 2px 8px; margin-top: 8px;
+  }
+  .mock-datebar .nav { display: flex; justify-content: space-between; align-items: center; margin-top: 8px; font-size: 13px; color: var(--ink-mute); }
+
+  /* ---- 对比表小样 ---- */
+  .mock-compare {
+    width: 100%; max-width: 200px; background: var(--card); border-radius: 10px;
+    box-shadow: var(--shadow-sm); padding: 12px 14px; font-size: 12px;
+  }
+  .mock-compare .hdr { display: grid; grid-template-columns: 1fr 1fr 1fr; text-align: center; font-size: 11px; color: var(--ink-mute); margin-bottom: 6px; }
+  .mock-compare .row { display: grid; grid-template-columns: 1fr 1fr 1fr; align-items: center; margin-bottom: 6px; }
+  .mock-compare .row .label { font-size: 11px; color: var(--ink-mute); }
+  .mock-compare .row .val { text-align: center; font-family: ui-monospace, monospace; }
+  .mock-compare .win { color: var(--accent); font-weight: 700; }
+
+  /* ---- FAQ ---- */
+  .faq-item { border-bottom: 1px solid var(--border-subtle); padding: 16px 0; }
+  .faq-item:last-child { border-bottom: none; }
+  .faq-item h3 { font-size: 14.5px; font-weight: 600; margin: 0 0 6px; }
+  .faq-item p { font-size: 13.5px; color: var(--ink-soft); margin: 0; }
+
+  footer { margin-top: 56px; text-align: center; color: var(--ink-mute); font-size: 12.5px; }
+</style>
+
+<div class="wrap">
+
+  <div class="hero">
+    <div class="stamp"><div class="stamp-inner"><span>打卡</span></div></div>
+    <h1>双人打卡 使用手册</h1>
+    <p>你的拖延，TA看得见</p>
+    <span class="url">liudan-29.github.io/shared-checkin</span>
+  </div>
+
+  <section>
+    <h2>这是什么<span class="eyebrow">01 概览</span></h2>
+    <p class="lead">
+      两个人互相监督的每日打卡工具。各自安排今天要做的事，做完了打个卡，对方立刻能看到；谁超时没做，对方那边会显示拖延了多久。不用群里报备，翻开就知道对方进度。
+    </p>
+  </section>
+
+  <hr class="punch-divider" />
+
+  <section>
+    <h2>快速开始<span class="eyebrow">02 上手</span></h2>
+    <div class="steps">
+      <div class="step">
+        <div class="step-num">1</div>
+        <div class="step-body">
+          <h3>打开网址</h3>
+          <p>浏览器访问上面那个地址，手机电脑都行，不用装App。</p>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-num">2</div>
+        <div class="step-body">
+          <h3>用自己的账号登录</h3>
+          <p>邮箱和密码找建账号的人要。忘了密码也找他，账号在Supabase后台改，不是App里的功能。</p>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-num">3</div>
+        <div class="step-body">
+          <h3>进来就是今天</h3>
+          <p>第一次登录，今天是空的很正常，点下面添加时段，或者先去设置模板（见后面）。</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <hr class="punch-divider" />
+
+  <section>
+    <h2>今天要做什么<span class="eyebrow">03 打卡</span></h2>
+    <p class="lead">每个时间段是一张卡片，写着几点到几点、做什么事。</p>
+
+    <div class="feature">
+      <div class="feature-text">
+        <h3>打卡</h3>
+        <p>点卡片右边的圆圈，会弹一个小框问你做了什么，可以写一句也可以直接跳过，然后就盖上一枚蓝色的章。</p>
+        <ul>
+          <li>点已经盖章的位置，可以撤销这次打卡</li>
+          <li>卡片下面"添加时段"随时能加新的安排</li>
+        </ul>
+      </div>
+      <div class="feature-mock">
+        <div class="mock-slotcard">
+          <div class="mock-row">
+            <span class="time">08:00–09:00</span>
+            <div class="mock-stamp">✓已完成</div>
+          </div>
+          <div class="task">背英语单词</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="feature">
+      <div class="feature-text">
+        <h3>产出记录（打卡时写的那句话）</h3>
+        <p>打卡时弹框里写的那句话，会作为备注留在这张卡片上，具体做了什么、进度到哪，两人都能看到，不是打个勾就完事。</p>
+        <ul>
+          <li>这条备注不是写一次就锁死的，随时能回来改</li>
+          <li>点卡片文字部分（有支铅笔图标提示）就能改，包括改这句话、改时间、改任务名，或者整条删掉——打卡前打卡后都能改，已经打过卡的也不例外</li>
+          <li>每日总结里会把两人当天写的备注按时间合并成一条记录</li>
+        </ul>
+      </div>
+      <div class="feature-mock">
+        <div class="mock-slotcard">
+          <div class="mock-row">
+            <span class="time">07:00–07:30</span>
+            <div class="mock-stamp">✓已完成</div>
+          </div>
+          <div class="task">晨读</div>
+          <div style="margin-top:6px; font-family:ui-monospace,monospace; font-size:11px; color:var(--ink-mute);">07:15打卡</div>
+          <div style="margin-top:2px; font-size:12px; color:var(--ink-soft);">读了半小时英语，感觉还行</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="feature">
+      <div class="feature-text">
+        <h3>没按时做完会怎样</h3>
+        <p>时段结束了还没打卡，卡片上会出现一个歪的红色小标签，写着拖延了多久。正在做的时候不算拖延，只有真的超时了才算。</p>
+      </div>
+      <div class="feature-mock">
+        <div class="mock-slotcard">
+          <div class="mock-row">
+            <span class="time">09:00–10:30</span>
+            <div class="mock-check">○</div>
+          </div>
+          <div class="task">跑步</div>
+          <div class="mock-delay">拖延23分钟</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <hr class="punch-divider" />
+
+  <section>
+    <h2>看对方进度<span class="eyebrow">04 监督</span></h2>
+    <div class="feature">
+      <div class="feature-text">
+        <p>手机上用顶部我的/TA的切换查看；电脑上两栏并排显示，不用切换。</p>
+        <p>对方打卡的瞬间，这边不用刷新，页面会自动更新，能看到章盖上去的动画。</p>
+        <ul>
+          <li>顶部有一排小方格，代表当天几个时段，实心蓝色是完成、实心红色是拖延，一眼看出进度</li>
+        </ul>
+      </div>
+      <div class="feature-mock">
+        <div class="mock-slotcard">
+          <div style="font-size:11px; color:var(--ink-mute); margin-bottom:8px;">今日进度</div>
+          <div class="mock-strip">
+            <div class="mock-dot done"></div>
+            <div class="mock-dot done"></div>
+            <div class="mock-dot missed"></div>
+            <div class="mock-dot"></div>
+            <div class="mock-dot"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <hr class="punch-divider" />
+
+  <section>
+    <h2>翻看别的日子<span class="eyebrow">05 历史与未来</span></h2>
+    <p class="lead">顶部日期那一行不是只能看今天，可以往前看记录、往后看安排。</p>
+
+    <div class="feature">
+      <div class="feature-text">
+        <ul>
+          <li>点日期文字旁边的小日历图标，直接选某一天跳过去，不用一天天翻</li>
+          <li>也可以用左右箭头一天天翻，翻到底会自动变灰（最多能看过去半年、未来3个月）</li>
+          <li><strong style="color:var(--ink)">过去</strong>的日子是只读的，看当时真实打卡记录，不能补改</li>
+          <li><strong style="color:var(--ink)">未来</strong>的日子是预览，看模板会自动生成什么安排，还没到不能提前打卡</li>
+          <li>只有今天能操作，点"回到今天"随时跳回来</li>
+        </ul>
+      </div>
+      <div class="feature-mock">
+        <div class="mock-datebar">
+          <div class="row1"><span>7月10日 周五</span><span style="font-size:15px;">📅</span></div>
+          <div class="badge">🔒 只读 · 回到今天</div>
+          <div class="nav"><span>‹</span><span>...</span><span>›</span></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <hr class="punch-divider" />
+
+  <section>
+    <h2>每日总结<span class="eyebrow">06 对比</span></h2>
+    <div class="feature">
+      <div class="feature-text">
+        <p>点顶部图表图标，弹出这一天两人的对比：完成率、完成几项、拖延几次、拖延多久，谁更好那一栏会亮起来。下面是两人当天写的备注，按时间合并成一条记录。</p>
+        <p>任意一天都能看，包括还没到的未来（虽然那时候通常都是零）。</p>
+      </div>
+      <div class="feature-mock">
+        <div class="mock-compare">
+          <div class="hdr"><span></span><span>我</span><span>TA</span></div>
+          <div class="row"><span class="label">完成率</span><span class="val win">83%</span><span class="val">50%</span></div>
+          <div class="row"><span class="label">拖延次数</span><span class="val win">0次</span><span class="val">2次</span></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <hr class="punch-divider" />
+
+  <section>
+    <h2>模板设置<span class="eyebrow">07 日常安排</span></h2>
+    <p class="lead">
+      点顶部记事本图标进模板页。工作日、周末各一份，新的一天打开App时会照模板自动生成当天安排。改模板只影响以后的新日子，今天已经生成的安排要在主页面里单独改。
+    </p>
+  </section>
+
+  <hr class="punch-divider" />
+
+  <section>
+    <h2>常见问题<span class="eyebrow">08 FAQ</span></h2>
+
+    <div class="faq-item">
+      <h3>忘记密码怎么办</h3>
+      <p>找建账号的人，账号和密码都是在Supabase后台手动建的，App本身没有找回密码的功能。</p>
+    </div>
+    <div class="faq-item">
+      <h3>为什么看不到对方今天的安排</h3>
+      <p>大概率对方今天还没打开过App。当天的安排是打开App那一刻才生成的，对方没登录过，那天就还没有记录。</p>
+    </div>
+    <div class="faq-item">
+      <h3>拖延是怎么算的</h3>
+      <p>从时段结束时间开始算，还在时段进行中不算拖延。比如8点到9点的安排，8点半还没做完不算数，9点还没打卡才开始计时。</p>
+    </div>
+    <div class="faq-item">
+      <h3>对方能看到我的密码或者改我的安排吗</h3>
+      <p>不能。对方只能看你打卡的结果，改不了你的时段，密码只有你自己知道，双方都是各自登录各自的账号。</p>
+    </div>
+    <div class="faq-item">
+      <h3>手机和电脑看到的不一样吗</h3>
+      <p>功能一样，手机上是切换标签页看我的/TA的，电脑屏幕够宽会直接左右两栏都显示，不用切换。</p>
+    </div>
+    <div class="faq-item">
+      <h3>怎么退出登录</h3>
+      <p>点顶部右上角的头像圆圈，会弹出一个菜单，里面有"退出登录"。</p>
+    </div>
+    <div class="faq-item">
+      <h3>页面上出现"连接断了，正在重连"是什么意思</h3>
+      <p>网络临时断开导致实时同步暂时收不到对方的更新，App在后台自动重连，一般几秒内恢复，不用手动刷新，恢复后这条提示会自己消失。</p>
+    </div>
+  </section>
+
+  <footer>双人打卡 · 两个人的每日监督</footer>
+
+</div>
