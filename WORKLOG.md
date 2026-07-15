@@ -105,7 +105,10 @@
 - `lib/types.ts`加`Message`类型
 - `lib/messages.ts`：`fetchRecentMessages`(限制条数)、`postMessage`、`subscribeNewMessages`(实时订阅新留言)
 - 已派ui-designer出v5方案(`docs/ui-20260714-shared-checkin-v5.md`)：留言板固定位置、飘过动效具体规格、写留言入口、空状态、`prefers-reduced-motion`降级
-  - 踩坑：第一次派工(19:33前后)中途不明原因被终止("已被用户停止，不会再恢复"，双方都没意识到有这个操作)，等了近40分钟没结果，SendMessage催问才发现任务已经没了不是卡住。20:11用同样的需求重新派了一次(新agent)。以后派长任务后如果等待时间明显超过历史耗时区间，要主动催问确认任务还活着，不要一直傻等
+  - 踩坑：第一次派工(19:33前后)中途不明原因被终止("已被用户停止，不会再恢复"，双方都没意识到有这个操作)，等了近40分钟没结果，SendMessage催问才发现任务已经没了不是卡住。20:11用同样的需求重新派了一次(新agent)，这次约11分钟正常完成。以后派长任务后如果等待时间明显超过历史耗时区间，要主动催问确认任务还活着，不要一直傻等
+- UI实现：`components/MessageBoard.tsx`(飘动逻辑核心)、`components/MessageComposerDialog.tsx`(写留言弹窗，参照`CheckInDialog`)、`lib/use-prefers-reduced-motion.ts`(新hook)、`app/globals.css`加`@keyframes float-message`(用CSS自定义属性传起止位置，不是硬编码百分比)。`app/page.tsx`接入：留言板固定插在连接横幅之后、Tabs之前，明确不包进`isToday`/`dateMode`判断
+- 派code-reviewer审查，发现一个真实的严重bug：`MessageBoard.tsx`首次播放的`useEffect`依赖`[loading, messages.length]`且返回了cleanup清定时器——如果在首次延迟播放的等待窗口内(1.5到4秒)收到一条新留言导致`messages.length`变化，React会触发这次effect的cleanup把还没触发的定时器清掉，但`firstLoadDoneRef`已经是true，effect主体直接return不会重新调度，**整个轮播从此永久失效，直到刷新页面**。这是两人正常使用场景下真实会撞上的时序竞态，不是极端边界条件。修法：定时器句柄挪到独立的`firstPlayTimerRef`，不再通过effect的cleanup清理，只在组件真正卸载的那个effect里统一清掉。顺手把手写的写留言按钮换成复用现有`Button`组件(reviewer指出漏了`active:bg-secondary`态)
+- 已构建部署上线，`https://liudan-29.github.io/shared-checkin/`
 
 **待完成**：ui-designer v5方案审核 → UI组件实现(飘过效果的展示组件、写留言弹窗、按钮) → 接入`app/page.tsx` → 数据库迁移(用户需要重新跑一遍`schema.sql`，这次新增了messages表) → 验证部署
 
