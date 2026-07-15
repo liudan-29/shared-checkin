@@ -113,3 +113,27 @@
 **待完成**：ui-designer v5方案审核 → UI组件实现(飘过效果的展示组件、写留言弹窗、按钮) → 接入`app/page.tsx` → 数据库迁移(用户需要重新跑一遍`schema.sql`，这次新增了messages表) → 验证部署
 
 **[仅本次会话相关，读者可跳过]** 这条记录是在对话即将触发上下文压缩前补写的检查点，目的是防止压缩丢失细节，后续会话接手时应该完整读这一节，不要依赖对话摘要里的转述。
+
+## 2026-07-15 22:26（留言板v5.1：改并发飘动 + 历史/删除管理）
+
+用户真机体验v5后反馈两点，推翻v5方案里"一条播完等间隔再播下一条、不做删除"的两条决策：
+
+1. **要多条同时飘动**：明确类比"QQ空间"评论区同时有多条内容划过的效果，不要大段空白等待，怎么设计的美观度问题用户明确交给本体判断
+2. **要留言历史+删除**：能看全部留言，自己发的能删掉
+
+这次改动判定为"沿用已有token的延伸、体量不到新增功能模块级别"，本体直接实现，没有再派ui-designer（已对照`sub_agent_dispatch.md`的派工标准）：
+
+- `lib/messages.ts`加`deleteMessage(id)`，走Supabase delete，RLS已有的`delete_own_message`策略(`auth.uid()=sender_id`)天然保证只能删自己的
+- `components/MessageBoard.tsx`整体重写调度模型：原来单一`current`+`pickNext`/`playNext`+`gapTimerRef`的"一条播完等8-18秒再播下一条"模型，换成`lanes: (MessageView|null)[]`两条轨道并行，内部拆出`FloatingLane`子组件(靠`key={message.id}`保证每条留言remount、effect只跑一次)，父组件只负责"每隔2-4.5秒检查有没有空闲轨道、有就派一条新留言进去"的`scheduleSpawnAttempt`递归调度，不再有固定间隔等待。`MessageView`类型加`createdAt`字段
+- 新建`components/MessageHistoryDialog.tsx`：列出全部留言(头像+内容+时间)，仅`isMine`的留言旁边带删除按钮
+- `app/page.tsx`接入：`messageViews`补上`createdAt`映射、新增`historyOpen`state、`handleDeleteMessage`(乐观删除+失败回滚+toast重试，模式对齐`persistMySlots`)、渲染`<MessageHistoryDialog>`，`MessageBoard`新增"查看全部留言"按钮(History图标，写留言按钮旁边)
+- `docs/ui-20260714-shared-checkin-v5.md`补了"v5.1修订记录"章节，说明原方案第5/6节"不并发/不做删除"的决策已被用户实际反馈推翻，不重写整份文档(保留原方案推理过程做历史记录)
+- `npx tsc --noEmit`、`npm run build:pages`均通过。派code-reviewer审这次并发调度逻辑(定时器泄漏/竞态/重复播放)+删除功能，结论"需修改后复审"，两条must-fix：
+  1. **只有1条留言时会被同时塞进两条轨道**——`pickNext`原来对"只剩1条"这个情况直接短路返回，没排除"已经在别的轨道飘着"的消息。改法：`trySpawnInto`整个用`setLanes`的函数式更新一次性完成"找空闲轨道→算当前正在飘的id集合→挑一条不在这个集合里的消息→写入"，原子操作，同时顺手修掉reviewer额外指出的一处竞态建议（两处派发逻辑各自读一次旧state可能互相覆盖，现在也在同一个函数式更新里解决）
+  2. **删除没有二次确认**——项目里`SlotEditorSheet`/`GoalEditorSheet`删时段删目标都走`AlertDialog`确认，这次的删除入口漏了。补上：`MessageHistoryDialog.tsx`加`AlertDialog`确认弹窗("确认删除"/"再想想")，点删除图标先弹确认，选是了才真正调`onDelete`
+  - 顺手采纳一条建议：删除按钮从裸`<button>`（32px，比项目其他同类图标按钮小且低于44px触控下限）换成复用`Button variant="ghost" size="icon"`（40px，与项目其余icon按钮一致）；`handleDeleteMessage`删除成功补一句`toast.success("已删除")`，跟其他删除操作的提示习惯对齐
+  - 未采纳的建议（reviewer标为低优先级，暂不处理）：reduced-motion的淡入淡出时长实际被全局CSS的`!important`规则盖掉不生效（纯视觉细节，不影响功能正确性，且改动会牵扯全局规则不值得为这个小场景单开例外）；删除请求失败时的回滚快照可能连带冲掉并发到达的新留言（双人低频场景概率很低）；队列里等播放的消息如果播放前被删除仍会被播一次（窗口极窄，纯展示层瑕疵）
+  - 复审：修完再次`npx tsc --noEmit`+`npm run build:pages`均通过，两条must-fix均已定位到具体代码并修复，未重新整份重派reviewer（改动范围小、定位明确，符合"改完可以直接复审这两点不需要重新走完整轮次"的reviewer原话）
+  - **[仅本次会话相关，读者可跳过]** reviewer这次运行时验证受限：项目没有测试账号，主视图挂了真实Supabase登录守卫，reviewer只能验证`/login`公开路由能正常渲染+无console error，没能实际点开留言板触发两条轨道同时飘动、或打开历史弹窗点删除——must-fix的判断完全来自静态代码审查(逐行推演pickNext/trySpawnInto的执行路径)，不是运行时复现。本体这边同样受限于没有真实测试账号，只用Browser pane验证了dev server能正常起、`/login`无编译错误无console error，登录后的实际交互效果（尤其"QQ空间感"这个主观审美判断）仍需要用户在自己的设备上验证
+- 已重新构建部署上线：`https://liudan-29.github.io/shared-checkin/`
+- 待完成：code-reviewer结果处理、部署上线、用户真机验证"QQ空间感"是否符合预期

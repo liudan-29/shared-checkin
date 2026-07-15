@@ -26,6 +26,12 @@ export async function postMessage(senderId: string, content: string): Promise<Me
   return data as Message;
 }
 
+export async function deleteMessage(id: string): Promise<void> {
+  const supabase = getSupabase();
+  const { error } = await supabase.from("messages").delete().eq("id", id);
+  if (error) throw error;
+}
+
 // 订阅新留言的实时插入事件，回调只在收到确实是"新"的一条时触发
 export function subscribeNewMessages(onInsert: (message: Message) => void): () => void {
   const supabase = getSupabase();

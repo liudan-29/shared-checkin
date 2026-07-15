@@ -45,7 +45,8 @@ import { SummarySheet } from "@/components/SummarySheet";
 import { DateJumpSheet } from "@/components/DateJumpSheet";
 import { MessageBoard, type MessageView } from "@/components/MessageBoard";
 import { MessageComposerDialog } from "@/components/MessageComposerDialog";
-import { fetchRecentMessages, postMessage, subscribeNewMessages } from "@/lib/messages";
+import { MessageHistoryDialog } from "@/components/MessageHistoryDialog";
+import { fetchRecentMessages, postMessage, subscribeNewMessages, deleteMessage } from "@/lib/messages";
 import type { NoteEntry } from "@/components/SummaryNotesList";
 
 const TODAY = getTodayDateString();
@@ -79,6 +80,7 @@ export default function MainPage() {
   const [messagesLoading, setMessagesLoading] = useState(true);
   const [composerOpen, setComposerOpen] = useState(false);
   const [composerSubmitting, setComposerSubmitting] = useState(false);
+  const [historyOpen, setHistoryOpen] = useState(false);
 
   const disconnectTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -213,6 +215,7 @@ export default function MainPage() {
         content: m.content,
         authorLabel: user && m.sender_id === user.id ? "我" : peer?.name ?? "TA",
         isMine: user ? m.sender_id === user.id : false,
+        createdAt: m.created_at,
       })),
     [rawMessages, user, peer]
   );
@@ -229,6 +232,18 @@ export default function MainPage() {
       toast.error("发布没同步上", { action: { label: "重试", onClick: () => handlePostMessage(content) } });
     } finally {
       setComposerSubmitting(false);
+    }
+  }
+
+  async function handleDeleteMessage(id: string) {
+    const prev = rawMessages;
+    setRawMessages((cur) => cur.filter((m) => m.id !== id));
+    try {
+      await deleteMessage(id);
+      toast.success("已删除");
+    } catch {
+      setRawMessages(prev);
+      toast.error("删除没同步上", { action: { label: "重试", onClick: () => handleDeleteMessage(id) } });
     }
   }
 
@@ -449,6 +464,7 @@ export default function MainPage() {
           messages={messageViews}
           loading={messagesLoading}
           onWriteClick={() => setComposerOpen(true)}
+          onOpenHistory={() => setHistoryOpen(true)}
         />
       </div>
 
@@ -531,6 +547,13 @@ export default function MainPage() {
         onOpenChange={setComposerOpen}
         submitting={composerSubmitting}
         onSubmit={handlePostMessage}
+      />
+
+      <MessageHistoryDialog
+        open={historyOpen}
+        onOpenChange={setHistoryOpen}
+        messages={messageViews}
+        onDelete={handleDeleteMessage}
       />
 
       <SummarySheet
