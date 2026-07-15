@@ -141,3 +141,39 @@ create policy "update_own_weekly_review" on public.weekly_reviews
 drop policy if exists "delete_own_weekly_review" on public.weekly_reviews;
 create policy "delete_own_weekly_review" on public.weekly_reviews
   for delete to authenticated using (auth.uid() = user_id);
+
+-- 8. 留言板：双方互相鼓励的话，全部公开，只取最近的用，不做已读/私密区分
+create table if not exists public.messages (
+  id uuid primary key default gen_random_uuid(),
+  sender_id uuid not null references public.users(id) on delete cascade,
+  content text not null,
+  created_at timestamptz not null default now()
+);
+
+alter table public.messages enable row level security;
+
+drop policy if exists "authed_read_messages" on public.messages;
+create policy "authed_read_messages" on public.messages
+  for select to authenticated using (true);
+
+drop policy if exists "insert_own_message" on public.messages;
+create policy "insert_own_message" on public.messages
+  for insert to authenticated with check (auth.uid() = sender_id);
+
+drop policy if exists "delete_own_message" on public.messages;
+create policy "delete_own_message" on public.messages
+  for delete to authenticated using (auth.uid() = sender_id);
+
+-- 开启 messages 的 Realtime：对方写的话能不刷新就飘出来，配合"偶尔飘过"的产品效果
+do $$
+begin
+  if not exists (
+    select 1 from pg_publication_tables
+    where pubname = 'supabase_realtime'
+      and schemaname = 'public'
+      and tablename = 'messages'
+  ) then
+    alter publication supabase_realtime add table public.messages;
+  end if;
+end
+$$;

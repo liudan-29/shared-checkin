@@ -58,3 +58,11 @@ export type WeeklyReview = {
   review_note: string | null;
   updated_at: string;
 };
+
+// 留言板：双方互相鼓励的话，全部公开，只取最近的用
+export type Message = {
+  id: string;
+  sender_id: string;
+  content: string;
+  created_at: string;
+};
