@@ -136,4 +136,23 @@
   - 复审：修完再次`npx tsc --noEmit`+`npm run build:pages`均通过，两条must-fix均已定位到具体代码并修复，未重新整份重派reviewer（改动范围小、定位明确，符合"改完可以直接复审这两点不需要重新走完整轮次"的reviewer原话）
   - **[仅本次会话相关，读者可跳过]** reviewer这次运行时验证受限：项目没有测试账号，主视图挂了真实Supabase登录守卫，reviewer只能验证`/login`公开路由能正常渲染+无console error，没能实际点开留言板触发两条轨道同时飘动、或打开历史弹窗点删除——must-fix的判断完全来自静态代码审查(逐行推演pickNext/trySpawnInto的执行路径)，不是运行时复现。本体这边同样受限于没有真实测试账号，只用Browser pane验证了dev server能正常起、`/login`无编译错误无console error，登录后的实际交互效果（尤其"QQ空间感"这个主观审美判断）仍需要用户在自己的设备上验证
 - 已重新构建部署上线：`https://liudan-29.github.io/shared-checkin/`
-- 待完成：code-reviewer结果处理、部署上线、用户真机验证"QQ空间感"是否符合预期
+- 待完成：用户真机验证"QQ空间感"是否符合预期
+
+## 2026-07-16 08:04（删PDCA周目标 + 打卡产出发布留言板 + 留言板可折叠）
+
+用户看了截图提三个要求，先走了`dispatch_preflight.md`的三步摊账流程（合并改动碰的文件数超过10个），确认分工后本体全部直接做，没有派code-writer/ui-designer（删除操作需要项目历史上下文本体最熟；两个新交互都要用户能实时看效果，规则规定这类无论体量都留主线）：
+
+1. **删除PDCA周期目标功能**：用户反馈这块跟每日总结重合，决定整体删除，不只是藏入口图标。删除范围：`app/weekly/page.tsx`整个路由、8个专属组件(`GoalEditorSheet`/`GoalRow`/`GoalStatusTag`/`ReviewSection`/`ShareCard`/`SharePreviewDialog`/`WeekTicket`/`WeeklyCompareTable`)、4个lib文件(`week.ts`/`week-summary.ts`/`weekly-reviews.ts`/`share-image.ts`)、`lib/types.ts`里的`CycleGoal`/`NewCycleGoal`/`WeeklyReview`类型、`html-to-image`依赖（`npm uninstall`）。`DateTicket.tsx`删掉靶心图标和`onOpenWeekly`prop，`app/page.tsx`删掉对应wiring。用AskUserQuestion问清楚一个关键决策：Supabase的`weekly_reviews`表要不要一起删——**用户选择保留（代码删、表留着）**，以后想恢复不用重建数据，这个决定已经写进`CLAUDE.md`数据模型章节，不算删除不彻底。`docs/ui-20260714-shared-checkin-v4.md`保留不删，仅作历史记录
+2. **打卡产出记录可选发布到留言板**：新建`components/ShareNoteToBoardDialog.tsx`（照抄`CheckInDialog`/`MessageComposerDialog`的Dialog+Button模式），`app/page.tsx`新增`offerShareNote(note)`辅助函数，在`handleCheck`打卡成功后、`handleSaveSlot`保存成功后（`persistMySlots`新增第4个`onSuccess`回调参数）都会触发——按用户确认的口径，"打卡当下"和"之后用`SlotEditorSheet`修改note"两个入口都要弹。note本身在`CheckInDialog`/`SlotEditorSheet`里已经限40字，跟留言板`content`的40字上限天然一致，不需要额外截断
+3. **留言板可折叠**：`MessageBoard.tsx`加`collapsed`state，右侧图标区新增`ChevronUp`/`ChevronDown`折叠/展开按钮，容器高度用`transition-all duration-normal ease-default`过渡。**实现时自己排查出一个潜在bug并提前修复**：折叠时如果直接卸载飘动轨道的DOM，正在播放的`FloatingLane`会被卸载、它内部`useEffect`的cleanup清掉`setTimeout`，导致`onDone`永远不会触发，那条轨道会永久卡在"占用"状态，后台调度器再也找不到空闲轨道可派——所以`handleCollapse`函数会在设置`collapsed=true`的同时把`lanes`重置成全null数组，避免这个泄漏
+- `npx tsc --noEmit`、`npm run build:pages`均通过（构建产物从7个路由变成6个，`/weekly`确认消失）
+- 派两个code-reviewer并行审查（按"闭环可审查单元"拆批：一个专门验证删除是否干净无残留引用，一个专门审两个新功能的逻辑正确性）：
+  - **删除PDCA这批**：✅通过，无must-fix。全项目Grep零残留引用、`DateTicket.tsx`/`app/page.tsx`/`lib/types.ts`删得干净、`html-to-image`在`package.json`和`node_modules`都确认清零、文档描述和代码现状一致。一条低优先级建议（`README.md`里有一处历史遗留的本机绝对路径，跟本次删除无关，暂不处理）
+  - **两个新功能这批**：⚠️需修改后复审，两条must-fix都已修复：
+    1. **`offerShareNote`会在note没变化时也重复弹**——比如打卡写了note之后，某天只是把这条时段的时间往后挪5分钟保存一下，也会把同一条没变的note再问一遍要不要发布，属实打扰。修法：`handleSaveSlot`保存前先记下`editor.slot`原有的note，成功回调里判断`data.note`是否真的和原值不同，只有变了才调`offerShareNote`
+    2. **折叠/展开按钮是可访问性硬指标问题**——原来折叠态和展开态各自渲染一个独立的Button，点击后React会把旧按钮整个卸载、挂载新按钮，键盘/屏幕阅读器的焦点会跟丢（需要重新Tab才能找到新按钮）。修法：改成同一个Button元素常驻，只切换图标（`ChevronDown`/`ChevronUp`）和`aria-label`/`aria-expanded`，DOM节点不再被替换，焦点保持住
+  - 顺手采纳两条建议：`trySpawnInto`加`collapsedRef`判断，折叠期间彻底跳过派发（原来后台调度器折叠时还在往`lanes`里塞消息，虽然不会卡死但纯属无意义的state搅动）；展开时补一次`containerWidth`重新测量（折叠期间track的DOM节点被卸载，用户如果转手机方向或调整窗口宽度，展开时按过期宽度算飘动起止点会跑偏）
+  - 未采纳的建议（reviewer标为低优先级或需要真机验证才能确认是否值得处理，暂不处理）：展开动画进行到~60%之前`overflow-hidden`可能裁切第二条轨道一瞬间（reviewer自己也没能运行时验证，等用户真机看是否真的明显卡顿再决定要不要修）；历史note如果曾经绕过40字前端限制写入DB（无已知路径，纯理论风险）
+  - 复审：修完再次`npx tsc --noEmit`+`npm run build:pages`均通过，Browser pane验证`/login`无console error（同样受限于没有测试账号，没能验证登录后的实际交互效果）
+- 已重新构建部署上线：`https://liudan-29.github.io/shared-checkin/`
+- 待完成：用户真机验证折叠展开的视觉效果、留言板"要不要发布到留言板"弹窗的实际打扰程度是否合适

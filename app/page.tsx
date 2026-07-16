@@ -46,6 +46,7 @@ import { DateJumpSheet } from "@/components/DateJumpSheet";
 import { MessageBoard, type MessageView } from "@/components/MessageBoard";
 import { MessageComposerDialog } from "@/components/MessageComposerDialog";
 import { MessageHistoryDialog } from "@/components/MessageHistoryDialog";
+import { ShareNoteToBoardDialog } from "@/components/ShareNoteToBoardDialog";
 import { fetchRecentMessages, postMessage, subscribeNewMessages, deleteMessage } from "@/lib/messages";
 import type { NoteEntry } from "@/components/SummaryNotesList";
 
@@ -81,6 +82,11 @@ export default function MainPage() {
   const [composerOpen, setComposerOpen] = useState(false);
   const [composerSubmitting, setComposerSubmitting] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
+  const [shareNote, setShareNote] = useState<{ open: boolean; content: string }>({
+    open: false,
+    content: "",
+  });
+  const [shareNoteSubmitting, setShareNoteSubmitting] = useState(false);
 
   const disconnectTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -247,18 +253,46 @@ export default function MainPage() {
     }
   }
 
+  // 打卡或编辑时段时写了产出记录（note），保存成功后问一句要不要顺手发到留言板。
+  // 打卡当下和之后用SlotEditorSheet补录/修改都会触发，只要note非空
+  function offerShareNote(note: string | null | undefined) {
+    const trimmed = note?.trim();
+    if (trimmed) setShareNote({ open: true, content: trimmed });
+  }
+
+  async function handleConfirmShareNote() {
+    if (!user) return;
+    setShareNoteSubmitting(true);
+    try {
+      const created = await postMessage(user.id, shareNote.content);
+      setRawMessages((prev) => (prev.some((m) => m.id === created.id) ? prev : [created, ...prev].slice(0, 20)));
+      setShareNote({ open: false, content: "" });
+      toast.success("已发布到留言板");
+    } catch {
+      toast.error("发布没同步上", { action: { label: "重试", onClick: handleConfirmShareNote } });
+    } finally {
+      setShareNoteSubmitting(false);
+    }
+  }
+
   // eslint-disable-next-line react-hooks/exhaustive-deps -- tick 只用来触发每分钟重算，无需读取
   const now = useMemo(() => new Date(), [tick]);
 
   // 乐观写入当天 slots（只允许今天；planId非空不代表可写——过去日期若曾打过卡也会有planId，
   // 这里不靠UI没做入口这一层防护，显式拦截isToday）
-  async function persistMySlots(nextSlots: PlanSlot[], successMsg?: string, onFail?: () => void) {
+  async function persistMySlots(
+    nextSlots: PlanSlot[],
+    successMsg?: string,
+    onFail?: () => void,
+    onSuccess?: () => void
+  ) {
     if (!isToday || !myView.planId) return;
     const prev = myView;
     setMyView({ ...myView, slots: nextSlots });
     try {
       await saveDayPlanSlots(myView.planId, nextSlots);
       if (successMsg) toast.success(successMsg);
+      onSuccess?.();
     } catch {
       setMyView(prev);
       onFail?.();
@@ -276,6 +310,7 @@ export default function MainPage() {
     try {
       await saveDayPlanSlots(myView.planId, updatedSlots);
       toast.success(`已打卡·${new Date().toTimeString().slice(0, 5)}`);
+      offerShareNote(note);
     } catch {
       setMyView(prev);
       toast.error("打卡没同步上", {
@@ -294,6 +329,9 @@ export default function MainPage() {
   }
 
   async function handleSaveSlot(data: Omit<Slot, "id"> & { note?: string | null }) {
+    // 保存前先记下编辑前的note，只有note真的变了才在成功后问要不要分享——
+    // 否则光是改了时间/任务名这种跟note无关的编辑，也会拿同一条没变化的note重复打扰
+    const prevNote = editor.slot ? (editor.slot as PlanSlot).note : null;
     let updatedSlots: PlanSlot[];
     if (editor.slot) {
       updatedSlots = myView.slots.map((s) => (s.id === editor.slot!.id ? { ...s, ...data } : s));
@@ -311,7 +349,14 @@ export default function MainPage() {
       updatedSlots = [...myView.slots, newSlot];
     }
     updatedSlots.sort((a, b) => a.start_time.localeCompare(b.start_time));
-    await persistMySlots(updatedSlots, "已保存", () => toast.error("保存没同步上"));
+    await persistMySlots(
+      updatedSlots,
+      "已保存",
+      () => toast.error("保存没同步上"),
+      () => {
+        if ((data.note ?? null) !== prevNote) offerShareNote(data.note);
+      }
+    );
   }
 
   async function handleDeleteSlot() {
@@ -442,7 +487,6 @@ export default function MainPage() {
         onOpenTemplate={() => router.push("/template")}
         onOpenSummary={() => setSummaryOpen(true)}
         onOpenDateJump={() => setDateJumpOpen(true)}
-        onOpenWeekly={() => router.push("/weekly")}
         onLogout={handleLogout}
         prevDisabled={viewDate <= MIN_DATE}
         nextDisabled={viewDate >= MAX_DATE}
@@ -554,6 +598,14 @@ export default function MainPage() {
         onOpenChange={setHistoryOpen}
         messages={messageViews}
         onDelete={handleDeleteMessage}
+      />
+
+      <ShareNoteToBoardDialog
+        open={shareNote.open}
+        onOpenChange={(open) => setShareNote((s) => ({ ...s, open }))}
+        note={shareNote.content}
+        submitting={shareNoteSubmitting}
+        onConfirm={handleConfirmShareNote}
       />
 
       <SummarySheet

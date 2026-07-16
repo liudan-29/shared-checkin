@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { MessageCircle, PenLine, History } from "lucide-react";
+import { MessageCircle, PenLine, History, ChevronUp, ChevronDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { usePrefersReducedMotion } from "@/lib/use-prefers-reduced-motion";
@@ -16,6 +16,8 @@ export type MessageView = {
 
 const LANE_COUNT = 2;
 const LANE_HEIGHT = 40;
+const PADDING_Y = 16; // 对应容器的py-2（上下各8px），折叠/展开的高度计算要把这份padding算进去
+const COLLAPSED_CONTENT_HEIGHT = 40; // 折叠态只留一个图标按钮高度的内容区
 
 const MIN_DURATION = 6000;
 const MAX_DURATION = 12000;
@@ -128,6 +130,7 @@ export function MessageBoard({
   const trackRef = useRef<HTMLDivElement>(null);
   const [containerWidth, setContainerWidth] = useState(300);
   const [lanes, setLanes] = useState<(MessageView | null)[]>(() => Array(LANE_COUNT).fill(null));
+  const [collapsed, setCollapsed] = useState(false);
 
   const lastIdRef = useRef<string | null>(null);
   const seenIdsRef = useRef<Set<string>>(new Set());
@@ -137,10 +140,18 @@ export function MessageBoard({
   messagesRef.current = messages;
   const spawnTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const firstPlayTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const collapsedRef = useRef(collapsed);
+  collapsedRef.current = collapsed;
 
   useEffect(() => {
     if (trackRef.current) setContainerWidth(trackRef.current.offsetWidth);
   }, []);
+
+  // 折叠时track的DOM节点会被卸载，展开时是全新节点，容器宽度可能在折叠期间变过
+  // （比如用户转了手机方向），重新展开时补测一次，避免飘动起止点按过期宽度计算
+  useEffect(() => {
+    if (!collapsed && trackRef.current) setContainerWidth(trackRef.current.offsetWidth);
+  }, [collapsed]);
 
   // 从候选池里挑一条不在excludeIds(当前正在飘的留言)里的消息，避免同一句话同时出现在两条轨道。
   // 队列里的消息如果全都已经在飘，或者全部留言都已经在飘（比如总共只有1条），返回null——
@@ -166,6 +177,7 @@ export function MessageBoard({
   // 找空闲轨道、算排除集合、写入三步全部放进setLanes的函数式更新里，对同一份最新state原子完成——
   // 避免"两处派发逻辑各自读一次旧state再分别写"造成的竞态（后写覆盖先写，导致一条消息被跳过）。
   function trySpawnInto() {
+    if (collapsedRef.current) return; // 折叠时不渲染轨道，派进去也没有FloatingLane去释放它，白白占位
     setLanes((prev) => {
       const freeIndex = prev.findIndex((l) => l === null);
       if (freeIndex === -1) return prev;
@@ -229,59 +241,95 @@ export function MessageBoard({
     });
   }
 
+  // 折叠时track连同里面的FloatingLane一起卸载，正在飘的留言不会触发onDone，
+  // 不主动清空的话那条轨道会永久占着(再也等不到onDone)、调度器找不到空闲轨道可派。
+  // 折叠这一刻直接把两条轨道都清空，交给后台调度器重新填，不需要保留"折叠前飘到哪了"这份状态。
+  function handleCollapse() {
+    setCollapsed(true);
+    setLanes(Array(LANE_COUNT).fill(null));
+  }
+
   const trackHeight = LANE_COUNT * LANE_HEIGHT;
+  const boardHeight = collapsed ? COLLAPSED_CONTENT_HEIGHT + PADDING_Y : trackHeight + PADDING_Y;
 
   return (
     <div
-      className="relative flex items-center rounded-lg bg-card px-4 py-2 shadow-sm"
+      className="relative flex items-center justify-between overflow-hidden rounded-lg bg-card px-4 py-2 shadow-sm transition-all duration-normal ease-default"
       style={{
+        height: boardHeight,
         borderTop: "1px dashed var(--color-border-default)",
         borderBottom: "1px dashed var(--color-border-default)",
       }}
     >
-      <div
-        ref={trackRef}
-        className="relative flex-1 overflow-hidden"
-        style={{ height: trackHeight }}
-      >
-        {loading && (
-          <div className="flex h-full items-center justify-center">
-            <Skeleton className="h-5 w-40" />
-          </div>
-        )}
-        {!loading && messages.length === 0 && (
-          <div className="flex h-full items-center justify-center gap-1.5 text-sm text-muted-foreground">
-            <MessageCircle className="h-3.5 w-3.5" />
-            还没有人留言，点右边写第一句
-          </div>
-        )}
-        {!loading &&
-          messages.length > 0 &&
-          lanes.map((msg, i) => (
-            <div
-              key={i}
-              className="absolute inset-x-0 overflow-hidden"
-              style={{ top: i * LANE_HEIGHT, height: LANE_HEIGHT }}
-            >
-              {msg && (
-                <FloatingLane
-                  key={msg.id}
-                  message={msg}
-                  reducedMotion={reducedMotion}
-                  containerWidth={containerWidth}
-                  onDone={() => handleLaneDone(i)}
-                />
-              )}
+      {collapsed ? (
+        <span className="flex items-center gap-1.5 text-sm text-muted-foreground">
+          <MessageCircle className="h-3.5 w-3.5" />
+          留言板
+        </span>
+      ) : (
+        <div
+          ref={trackRef}
+          className="relative flex-1 overflow-hidden"
+          style={{ height: trackHeight }}
+        >
+          {loading && (
+            <div className="flex h-full items-center justify-center">
+              <Skeleton className="h-5 w-40" />
             </div>
-          ))}
-      </div>
+          )}
+          {!loading && messages.length === 0 && (
+            <div className="flex h-full items-center justify-center gap-1.5 text-sm text-muted-foreground">
+              <MessageCircle className="h-3.5 w-3.5" />
+              还没有人留言，点右边写第一句
+            </div>
+          )}
+          {!loading &&
+            messages.length > 0 &&
+            lanes.map((msg, i) => (
+              <div
+                key={i}
+                className="absolute inset-x-0 overflow-hidden"
+                style={{ top: i * LANE_HEIGHT, height: LANE_HEIGHT }}
+              >
+                {msg && (
+                  <FloatingLane
+                    key={msg.id}
+                    message={msg}
+                    reducedMotion={reducedMotion}
+                    containerWidth={containerWidth}
+                    onDone={() => handleLaneDone(i)}
+                  />
+                )}
+              </div>
+            ))}
+        </div>
+      )}
 
       <div className="ml-2 flex shrink-0 items-center gap-1">
-        <Button variant="ghost" size="icon" onClick={onOpenHistory} aria-label="查看全部留言">
-          <History className="h-[18px] w-[18px]" />
-        </Button>
-        <Button variant="ghost" size="icon" onClick={onWriteClick} aria-label="写一句留言">
-          <PenLine className="h-[18px] w-[18px]" />
+        {!collapsed && (
+          <>
+            <Button variant="ghost" size="icon" onClick={onOpenHistory} aria-label="查看全部留言">
+              <History className="h-[18px] w-[18px]" />
+            </Button>
+            <Button variant="ghost" size="icon" onClick={onWriteClick} aria-label="写一句留言">
+              <PenLine className="h-[18px] w-[18px]" />
+            </Button>
+          </>
+        )}
+        {/* 折叠/展开用同一个Button元素，只切换图标和文案——两个状态下如果各渲染一个独立的
+            按钮，点击后React会卸载旧按钮挂载新按钮，键盘/屏幕阅读器的焦点会跟丢 */}
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={collapsed ? () => setCollapsed(false) : handleCollapse}
+          aria-label={collapsed ? "展开留言板" : "收起留言板"}
+          aria-expanded={!collapsed}
+        >
+          {collapsed ? (
+            <ChevronDown className="h-[18px] w-[18px]" />
+          ) : (
+            <ChevronUp className="h-[18px] w-[18px]" />
+          )}
         </Button>
       </div>
     </div>
