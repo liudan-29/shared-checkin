@@ -155,4 +155,15 @@
   - 未采纳的建议（reviewer标为低优先级或需要真机验证才能确认是否值得处理，暂不处理）：展开动画进行到~60%之前`overflow-hidden`可能裁切第二条轨道一瞬间（reviewer自己也没能运行时验证，等用户真机看是否真的明显卡顿再决定要不要修）；历史note如果曾经绕过40字前端限制写入DB（无已知路径，纯理论风险）
   - 复审：修完再次`npx tsc --noEmit`+`npm run build:pages`均通过，Browser pane验证`/login`无console error（同样受限于没有测试账号，没能验证登录后的实际交互效果）
 - 已重新构建部署上线：`https://liudan-29.github.io/shared-checkin/`
-- 待完成：用户真机验证折叠展开的视觉效果、留言板"要不要发布到留言板"弹窗的实际打扰程度是否合适
+- 待完成：用户真机验证折叠展开的视觉效果
+- 用户已确认"要不要发布到留言板"弹窗的触发时机和频率符合预期（只在note内容真的变化时弹，改时间/任务名不弹），这条不再需要验证
+
+## 2026-07-16 08:44（模板同步到今天）
+
+用户反馈模板编辑页改了模板后，今天的计划不会跟着变——先复述现状：未来日期本来就是每次现算预览、天然跟着模板走，唯一不同步的是"今天"（今天首次打开时从模板拷贝成独立数据，之后模板再改不会回溯影响）。问清楚需求后用户认可"只加不删"的保守方案（推荐理由：整体覆盖会撞上"已打卡时段怎么处理"这个绕不开的坑，保守方案行为可预测、覆盖大多数真实场景），确认后直接做（4个文件，远低于code-writer/code-reviewer的派工阈值，本体自查代替）：
+
+- `lib/day-plan.ts`新增`isSlotAlreadyInDay`（按任务名+起止时间内容比对，不能按id比对——模板和当天计划的slot id各自独立生成）、`mergeTemplateSlotsIntoDay`（只把选中且内容还不存在的模板时段追加进当天计划，已打卡/已存在的一律不动，排序后返回）
+- 新增`components/ui/checkbox.tsx`（`@radix-ui/react-checkbox`，项目里第一次用到勾选框，风格照抄`label.tsx`/`button.tsx`的token用法）
+- 新增`components/SyncTemplateDialog.tsx`：勾选列表弹窗，跟当天计划内容一致的时段默认不勾并标"今天已有"标签，新增/改过的默认勾上；"同步"按钮在没有勾选项时禁用
+- `app/template/page.tsx`接入：Tab切换栏下方新增"同步到今天"按钮，**只在当前查看的tab和今天实际的day_type一致时才显示**（避免在周末tab点同步却把周末模板塞进工作日的今天，这是设计阶段就想避开的坑）。点击后`ensureDayPlan`保证今天计划存在（跟主视图打开当天时建行逻辑一致），弹窗确认后合并保存
+- `npx tsc --noEmit`、`npm run build:pages`均通过。改动4个文件，未派code-reviewer（远低于10文件/500行/安全敏感的派工阈值），本体自查了合并逻辑的幂等性（哪怕用户手动勾选了"今天已有"的条目，`mergeTemplateSlotsIntoDay`合并时还是会按内容再判一次，不会产生重复时段）和`<label>`包裹Radix Checkbox按钮的点击转发行为（`<button>`是HTML规范里的labelable元素，`<label>`点击会正确转发到嵌套的checkbox，不是只有原生`<input>`才行）

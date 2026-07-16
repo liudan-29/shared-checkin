@@ -2,17 +2,25 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 import { useSession } from "@/lib/use-session";
 import { fetchTemplate, upsertTemplate } from "@/lib/templates";
-import type { DayType, Slot } from "@/lib/types";
+import { ensureDayPlan, mergeTemplateSlotsIntoDay, saveDayPlanSlots } from "@/lib/day-plan";
+import { getTodayDateString } from "@/lib/slot-status";
+import { dayTypeOf, parseDateString } from "@/lib/preview-plan";
+import type { DayType, PlanSlot, Slot } from "@/lib/types";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Button } from "@/components/ui/button";
 import { TemplateSlotRow } from "@/components/TemplateSlotRow";
 import { AddSlotRow } from "@/components/AddSlotRow";
 import { EmptyStateTemplate } from "@/components/EmptyState";
 import { SlotEditorSheet } from "@/components/SlotEditorSheet";
+import { SyncTemplateDialog } from "@/components/SyncTemplateDialog";
+
+const TODAY = getTodayDateString();
+const TODAY_DAY_TYPE = dayTypeOf(parseDateString(TODAY));
 
 export default function TemplatePage() {
   const router = useRouter();
@@ -25,6 +33,12 @@ export default function TemplatePage() {
   });
   const [loading, setLoading] = useState(true);
   const [editor, setEditor] = useState<{ open: boolean; slot?: Slot }>({ open: false });
+  const [syncDialog, setSyncDialog] = useState<{
+    open: boolean;
+    planId: string | null;
+    todaySlots: PlanSlot[];
+  }>({ open: false, planId: null, todaySlots: [] });
+  const [syncSubmitting, setSyncSubmitting] = useState(false);
 
   useEffect(() => {
     if (!sessionLoading && !session) router.replace("/login");
@@ -76,6 +90,29 @@ export default function TemplatePage() {
     persist(slotsByType[dayType].filter((s) => s.id !== editor.slot!.id));
   }
 
+  // 今天的day_plan如果还没生成过（今天还没打开过首页），先按今天的day_type建一份，
+  // 跟主视图打开当天时的建行逻辑一致，这里只是提前触发
+  async function handleOpenSync() {
+    if (!user) return;
+    const plan = await ensureDayPlan(user.id, TODAY, TODAY_DAY_TYPE);
+    setSyncDialog({ open: true, planId: plan.id, todaySlots: plan.slots });
+  }
+
+  async function handleConfirmSync(selected: Slot[]) {
+    if (!syncDialog.planId) return;
+    setSyncSubmitting(true);
+    try {
+      const merged = mergeTemplateSlotsIntoDay(syncDialog.todaySlots, selected);
+      await saveDayPlanSlots(syncDialog.planId, merged);
+      setSyncDialog({ open: false, planId: null, todaySlots: [] });
+      toast.success(`已同步${selected.length}条到今天`);
+    } catch {
+      toast.error("同步没成功，再试一次");
+    } finally {
+      setSyncSubmitting(false);
+    }
+  }
+
   const slots = slotsByType[dayType];
 
   return (
@@ -98,9 +135,22 @@ export default function TemplatePage() {
           <TabsTrigger value="weekend">周末</TabsTrigger>
         </TabsList>
 
-        <p className="mt-3 text-sm text-muted-foreground">
-          改模板影响之后的日子，今天的安排回首页改
-        </p>
+        <div className="mt-3 flex items-center justify-between gap-2">
+          <p className="text-sm text-muted-foreground">
+            改模板影响之后的日子，今天的安排回首页改
+          </p>
+          {dayType === TODAY_DAY_TYPE && (
+            <Button
+              variant="secondary"
+              size="sm"
+              className="shrink-0 gap-1.5 text-sm"
+              onClick={handleOpenSync}
+            >
+              <RefreshCw className="h-3.5 w-3.5" />
+              同步到今天
+            </Button>
+          )}
+        </div>
 
         <TabsContent value="weekday">
           {loading ? (
@@ -134,6 +184,15 @@ export default function TemplatePage() {
         initial={editor.slot}
         onSave={handleSave}
         onDelete={editor.slot ? handleDelete : undefined}
+      />
+
+      <SyncTemplateDialog
+        open={syncDialog.open}
+        onOpenChange={(open) => setSyncDialog((s) => ({ ...s, open }))}
+        templateSlots={slotsByType[TODAY_DAY_TYPE]}
+        todaySlots={syncDialog.todaySlots}
+        submitting={syncSubmitting}
+        onConfirm={handleConfirmSync}
       />
     </main>
   );

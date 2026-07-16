@@ -1,7 +1,7 @@
 import { getSupabase } from "./supabase";
 import { fetchTemplate } from "./templates";
 import { dayTypeOf, parseDateString, slotsToPreviewPlanSlots } from "./preview-plan";
-import type { DayPlan, DayType, PlanSlot } from "./types";
+import type { DayPlan, DayType, PlanSlot, Slot } from "./types";
 
 // 只为当前登录用户自建当天计划（RLS只允许写自己的行）；查别人的当天计划若不存在直接返回 null
 export async function fetchDayPlan(userId: string, date: string): Promise<DayPlan | null> {
@@ -59,6 +59,36 @@ export async function ensureDayPlan(
     .single();
   if (error) throw error;
   return data as DayPlan;
+}
+
+function slotContentEqual(
+  a: { task: string; start_time: string; end_time: string },
+  b: { task: string; start_time: string; end_time: string }
+): boolean {
+  return a.task === b.task && a.start_time === b.start_time && a.end_time === b.end_time;
+}
+
+// 按内容(任务名+起止时间)判断模板时段是不是已经存在于当天计划——模板和当天计划的slot id
+// 各自独立生成互不相关，不能靠id比对，只能靠内容
+export function isSlotAlreadyInDay(slot: Slot, daySlots: PlanSlot[]): boolean {
+  return daySlots.some((d) => slotContentEqual(d, slot));
+}
+
+// 把模板同步到今天：只加不删。已经在当天计划里的(含已打卡的)一律不动，
+// 只把选中且内容还不存在的模板时段追加进去，避免同步操作误删用户当天的临时安排或打卡记录
+export function mergeTemplateSlotsIntoDay(daySlots: PlanSlot[], selected: Slot[]): PlanSlot[] {
+  const toAdd = selected.filter((s) => !isSlotAlreadyInDay(s, daySlots));
+  const newPlanSlots: PlanSlot[] = toAdd.map((s) => ({
+    id: crypto.randomUUID(),
+    task: s.task,
+    start_time: s.start_time,
+    end_time: s.end_time,
+    done: false,
+    checked_at: null,
+    note: null,
+    photo_url: null,
+  }));
+  return [...daySlots, ...newPlanSlots].sort((a, b) => a.start_time.localeCompare(b.start_time));
 }
 
 export async function saveDayPlanSlots(dayPlanId: string, slots: PlanSlot[]): Promise<void> {
