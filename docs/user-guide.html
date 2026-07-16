@@ -226,6 +226,28 @@
   .mock-compare .row .val { text-align: center; font-family: ui-monospace, monospace; }
   .mock-compare .win { color: var(--accent); font-weight: 700; }
 
+  /* ---- 留言板小样 ---- */
+  .mock-board {
+    width: 100%; max-width: 200px; background: var(--card); border-radius: 10px;
+    box-shadow: var(--shadow-sm); padding: 10px 12px; display: flex; align-items: center; gap: 8px;
+    border-top: 1px dashed var(--border); border-bottom: 1px dashed var(--border);
+  }
+  .mock-board .avatar {
+    width: 20px; height: 20px; border-radius: 999px; background: var(--accent-subtle); color: var(--accent);
+    display: flex; align-items: center; justify-content: center; font-size: 10px; font-weight: 700; flex-shrink: 0;
+  }
+  .mock-board .msg { font-size: 12px; color: var(--ink); flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .mock-board .icons { display: flex; gap: 6px; color: var(--ink-mute); font-size: 13px; flex-shrink: 0; }
+  .mock-history {
+    width: 100%; max-width: 200px; background: var(--card); border-radius: 10px;
+    box-shadow: var(--shadow-sm); padding: 12px 14px; font-size: 12px;
+  }
+  .mock-history .row { display: flex; justify-content: space-between; align-items: flex-start; padding: 6px 0; border-bottom: 1px solid var(--border-subtle); }
+  .mock-history .row:last-child { border-bottom: none; }
+  .mock-history .msg { color: var(--ink); }
+  .mock-history .time { font-size: 10.5px; color: var(--ink-mute); margin-top: 2px; }
+  .mock-history .trash { color: var(--ink-mute); font-size: 12px; flex-shrink: 0; margin-left: 8px; }
+
   /* ---- FAQ ---- */
   .faq-item { border-bottom: 1px solid var(--border-subtle); padding: 16px 0; }
   .faq-item:last-child { border-bottom: none; }
@@ -314,6 +336,7 @@
           <li>这条备注不是写一次就锁死的，随时能回来改</li>
           <li>点卡片文字部分（有支铅笔图标提示）就能改，包括改这句话、改时间、改任务名，或者整条删掉——打卡前打卡后都能改，已经打过卡的也不例外</li>
           <li>每日总结里会把两人当天写的备注按时间合并成一条记录</li>
+          <li>只要这句话是新写的或者改过了，保存后会顺手问一句要不要发到留言板（见后面"留言板"），不想发就点"不用了"</li>
         </ul>
       </div>
       <div class="feature-mock">
@@ -422,16 +445,64 @@
   <hr class="punch-divider" />
 
   <section>
-    <h2>模板设置<span class="eyebrow">07 日常安排</span></h2>
-    <p class="lead">
-      点顶部记事本图标进模板页。工作日、周末各一份，新的一天打开App时会照模板自动生成当天安排。改模板只影响以后的新日子，今天已经生成的安排要在主页面里单独改。
-    </p>
+    <h2>留言板<span class="eyebrow">07 互相鼓励</span></h2>
+    <p class="lead">首页固定有一条留言区，跟打卡流程没关系，随时能写一句话给对方鼓劲，两人都能看到。</p>
+
+    <div class="feature">
+      <div class="feature-text">
+        <h3>写留言</h3>
+        <p>点右边的笔图标，弹出框写一句话（最多40字）发布出去。留言不是列成一排清单摆在那，而是像QQ空间评论区那样，不时有一两条从屏幕一侧飘过、飘完就消失，过一会儿又有新的冒出来。</p>
+      </div>
+      <div class="feature-mock">
+        <div class="mock-board">
+          <span class="avatar">我</span>
+          <span class="msg">今天状态不错，加油鸭～</span>
+          <span class="icons">🕐 ✎</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="feature">
+      <div class="feature-text">
+        <h3>查看历史 / 删除</h3>
+        <p>点历史图标（时钟样子那个）能看到最近这批留言的完整列表，按时间排好，不用等它飘过来。自己发的每条旁边有删除按钮，点了会先确认一下，选是了才真的删掉，删掉之后对方也看不到了。</p>
+      </div>
+      <div class="feature-mock">
+        <div class="mock-history">
+          <div class="row">
+            <div><div class="msg">今天状态不错，加油鸭～</div><div class="time">7月16日 09:20</div></div>
+            <span class="trash">🗑</span>
+          </div>
+          <div class="row">
+            <div><div class="msg">你也是，一起坚持</div><div class="time">7月16日 09:32</div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3>收起留言板</h3>
+      <p>觉得这条留言区占地方，点右上角的箭头图标收起来，只留一条细横条；想再看的时候点一下展开，不会丢内容。</p>
+    </div>
   </section>
 
   <hr class="punch-divider" />
 
   <section>
-    <h2>常见问题<span class="eyebrow">08 FAQ</span></h2>
+    <h2>模板设置<span class="eyebrow">08 日常安排</span></h2>
+    <p class="lead">
+      点顶部记事本图标进模板页。工作日、周末各一份，新的一天打开App时会照模板自动生成当天安排。改模板只影响以后的新日子，今天已经生成的安排不会自动跟着变。
+    </p>
+    <div class="card">
+      <h3>把新改的内容同步到今天</h3>
+      <p>如果改完模板也想让今天用上新内容，点"同步到今天"按钮（只在你正查看的模板跟今天类型一致时才会出现，比如今天是工作日，就只在"工作日"这个标签页里看得到）。会弹出一份勾选清单，今天已经有的时段默认不勾，新增或改过的默认勾上，确认后只会往今天里加新的，不会把你已有的安排或者已经打过的卡删掉。</p>
+    </div>
+  </section>
+
+  <hr class="punch-divider" />
+
+  <section>
+    <h2>常见问题<span class="eyebrow">09 FAQ</span></h2>
 
     <div class="faq-item">
       <h3>忘记密码怎么办</h3>
@@ -460,6 +531,14 @@
     <div class="faq-item">
       <h3>页面上出现"连接断了，正在重连"是什么意思</h3>
       <p>网络临时断开导致实时同步暂时收不到对方的更新，App在后台自动重连，一般几秒内恢复，不用手动刷新，恢复后这条提示会自己消失。</p>
+    </div>
+    <div class="faq-item">
+      <h3>留言过一会儿就飘走看不见了，是不是丢了</h3>
+      <p>没丢，这是故意设计成"偶尔飘过"的效果，不是常驻列表。想找回来看，点留言区旁边的历史图标，能看到完整列表。</p>
+    </div>
+    <div class="faq-item">
+      <h3>留言板的删除是真的删掉吗</h3>
+      <p>是的，删除之后两边都看不到了，无法恢复，所以点删除按钮时会先弹一次确认，避免手滑删错。</p>
     </div>
   </section>
 
