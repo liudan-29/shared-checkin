@@ -177,3 +177,38 @@
 - FAQ新增两条：留言飘走是不是丢了、删除是不是真的删掉
 - 小样用的CSS沿用手册自己已有的token（`--card`/`--border-subtle`/`--accent-subtle`等），没有新增色值
 - 重新发布Artifact到同一个URL：`https://claude.ai/code/artifact/083e0874-8dc1-4595-a36d-7e9b5e498162`
+
+## 2026-07-24 11:16
+
+- 核对GitHub仓库与Pages状态：`liudan-29/shared-checkin`当前为公开仓库，Pages从`gh-pages`分支发布且线上状态正常
+- 确认当时公开的原因：Vercel注册受阻后改用GitHub Pages，GitHub Free个人账户只有公开仓库可使用Pages
+- 若现在直接改为私有，现有GitHub Pages站点会自动下线；源码和Git历史仍保留在私有仓库
+- 新增`AGENTS.md`入口，项目约定继续统一维护在`CLAUDE.md`
+
+## 2026-09-19 13:28
+
+- 为简历作品集制作一张1600×900横版产品展示图，基于当前双人共享打卡真实功能重构演示界面，包含双人计划、实时同步、完成印章、拖延提示、产出记录、留言互动和每日完成度
+- 演示图中的姓名、任务与产出均为虚构内容，不包含真实账号、邮箱或朋友数据
+- 视觉沿用项目现有的暖纸点阵、墨蓝印章、朱红警示和票据语言，成图保存为`docs/portfolio-demo.png`
+- 同步保存设计说明`docs/portfolio-demo-philosophy.md`，临时渲染文件已清理，未修改产品源码
+
+## 2026-09-24 15:48
+
+- 用户提出将现有双人打卡升级为三人小组，当前只完成界面方案和静态预览，未改应用代码、数据库或线上站点
+- UI子Agent产出三人版布局方案：桌面端在宽度充足时三栏并列，窄桌面自动改两栏加一栏，移动端改为三位成员页签；每日总结改为三人数据对照
+- 基于方案生成静态界面预览`docs/three-person-layout-demo.png`，同时保存设计说明`docs/three-person-layout-demo-philosophy.md`和UI规格`docs/ui-20260924-three-person-demo.md`
+- 预览中姓名、任务和进度均为虚构占位数据；临时渲染文件已清理
+
+## 2026-09-24 19:07
+
+- 完成固定双人版到固定三人小组的代码改造，线上站点暂未部署，等待数据库迁移先执行
+- 数据库新增`checkin_groups`和`group_members`，模板、每日计划、留言增加`group_id`；RLS从所有登录用户互读收紧为仅同组可读、只能写本人资源
+- 新增`supabase/migrations/20260924_three_person_groups.sql`：三个邮箱均使用占位符，执行时校验三个Auth账号、整笔事务回填旧数据、每组最多三人；触发器先锁小组行再计数，防止并发插入第四人
+- 主页面改为三成员数据集合：宽度1200px及以上三栏并列，768至1199px两栏换行，手机端三条成员概览加三页签；新增`MemberOverviewCard`和`MemberOverviewBar`
+- Realtime按事件里的`user_id`更新对应成员列，留言查询、发布与订阅按`group_id`隔离；第三位成员与原两人拥有相同的本人编辑权限，查看别人时只读
+- 每日总结改为三人比较，桌面表格与手机成员块都高亮并列最优值；三人的产出备注合并为同一条时间线
+- 模板页接入小组上下文；未加入小组时显示说明页。登录页区分网络失败、账号密码错误和邮箱未确认
+- 同步更新`README.md`、`CLAUDE.md`、`docs/user-guide.html`、页面Metadata和`supabase/schema.sql`
+- 验证：`npx tsc --noEmit`、`npm run lint`、`npm run build:pages`全部通过
+- code-reviewer首轮发现五个阻断项：三人上限并发漏洞、1200px断点错用1280px、移动页签只有40px、公开迁移文件含真实邮箱、组长删除被外键阻断；全部修复后定向复审通过
+- 尚未做登录后三账号真机验收：当前执行环境没有三个真实账号密码，也没有直接执行Supabase DDL的授权。下一步由用户在Supabase SQL Editor运行迁移，确认成功后再部署并进行三账号互相可见与Realtime验收

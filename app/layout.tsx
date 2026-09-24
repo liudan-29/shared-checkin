@@ -10,8 +10,8 @@ const plexMono = IBM_Plex_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "双人打卡",
-  description: "两个人的每日时段打卡互相监督",
+  title: "三人打卡",
+  description: "三个人的每日时段打卡互相监督",
 };
 
 export const viewport: Viewport = {

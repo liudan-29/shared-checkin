@@ -1,16 +1,8 @@
--- 三人共享打卡数据库初始化
--- 新项目可整份执行。已有双人版项目请执行：
--- supabase/migrations/20260924_three_person_groups.sql
--- 该迁移会创建小组、回填旧数据并绑定三个Auth账号。
+-- 三人小组迁移。只在 Supabase Dashboard -> SQL Editor 中执行。
+-- 执行前把下面三个邮箱替换成真实账号邮箱；任何账号不存在都会整笔回滚。
 
--- 1. 用户资料
-create table if not exists public.users (
-  id uuid primary key references auth.users(id) on delete cascade,
-  name text not null,
-  avatar_url text
-);
+begin;
 
--- 2. 固定小组与成员关系
 create table if not exists public.checkin_groups (
   id uuid primary key default gen_random_uuid(),
   name text not null,
@@ -60,81 +52,124 @@ create trigger enforce_three_member_limit
   before insert or update of group_id on public.group_members
   for each row execute function public.enforce_three_member_limit();
 
--- 3. 模板与每日计划
-create table if not exists public.templates (
-  id uuid primary key default gen_random_uuid(),
-  group_id uuid not null references public.checkin_groups(id) on delete cascade,
-  owner_id uuid not null references public.users(id) on delete cascade,
-  day_type text not null check (day_type in ('weekday', 'weekend')),
-  slots jsonb not null default '[]'::jsonb,
-  updated_at timestamptz not null default now(),
-  unique (group_id, owner_id, day_type)
-);
-
-create table if not exists public.day_plans (
-  id uuid primary key default gen_random_uuid(),
-  group_id uuid not null references public.checkin_groups(id) on delete cascade,
-  user_id uuid not null references public.users(id) on delete cascade,
-  date date not null,
-  slots jsonb not null default '[]'::jsonb,
-  updated_at timestamptz not null default now(),
-  unique (group_id, user_id, date)
-);
-
--- 兼容旧库的列声明。已有数据的回填和NOT NULL收紧由迁移脚本完成。
 alter table public.templates add column if not exists group_id uuid references public.checkin_groups(id) on delete cascade;
 alter table public.day_plans add column if not exists group_id uuid references public.checkin_groups(id) on delete cascade;
+alter table public.messages add column if not exists group_id uuid references public.checkin_groups(id) on delete cascade;
+
+-- 防止第三个账号早于自动同步触发器创建，确保外键目标完整。
+insert into public.users (id, name)
+select id, split_part(email, '@', 1) from auth.users
+on conflict (id) do nothing;
+
+do $$
+declare
+  member_emails text[] := array[
+    'REPLACE_OWNER_EMAIL',
+    'REPLACE_MEMBER_2_EMAIL',
+    'REPLACE_MEMBER_3_EMAIL'
+  ];
+  member_ids uuid[];
+  selected_group_id uuid;
+  owner_user_id uuid;
+begin
+  select array_agg(lower(trim(email)) order by ord)
+  into member_emails
+  from unnest(member_emails) with ordinality as item(email, ord);
+
+  if exists (select 1 from unnest(member_emails) email where email like 'REPLACE_%') then
+    raise exception '请先把三个邮箱占位符替换为真实邮箱';
+  end if;
+
+  if cardinality(member_emails) <> 3 or (
+    select count(distinct lower(email)) from unnest(member_emails) email
+  ) <> 3 then
+    raise exception '必须填写三个不同的邮箱';
+  end if;
+
+  select array_agg(id order by array_position(member_emails, lower(email)))
+  into member_ids
+  from auth.users
+  where lower(email) = any(member_emails);
+
+  if coalesce(cardinality(member_ids), 0) <> 3 then
+    raise exception '没有找到全部三个Auth账号，请先在Authentication -> Users确认邮箱';
+  end if;
+
+  owner_user_id := member_ids[1];
+
+  if exists (
+    select 1 from public.group_members
+    where user_id = any(member_ids)
+    group by user_id
+    having count(*) > 1
+  ) then
+    raise exception '指定账号已存在冲突的小组关系';
+  end if;
+
+  select group_id
+  into selected_group_id
+  from public.group_members
+  where user_id = any(member_ids)
+  order by joined_at
+  limit 1;
+
+  if selected_group_id is null then
+    insert into public.checkin_groups (name, owner_id)
+    values ('三人共享打卡', owner_user_id)
+    returning id into selected_group_id;
+  elsif exists (
+    select 1 from public.group_members
+    where user_id = any(member_ids) and group_id <> selected_group_id
+  ) then
+    raise exception '三个账号分属不同小组，迁移已取消';
+  end if;
+
+  update public.checkin_groups
+  set owner_id = owner_user_id, name = '三人共享打卡'
+  where id = selected_group_id;
+
+  update public.group_members
+  set role = 'member'
+  where group_id = selected_group_id;
+
+  insert into public.group_members (group_id, user_id, role)
+  select
+    selected_group_id,
+    id,
+    case when id = owner_user_id then 'owner' else 'member' end
+  from unnest(member_ids) id
+  on conflict (group_id, user_id) do update
+    set role = excluded.role;
+
+  update public.templates
+  set group_id = selected_group_id
+  where owner_id = any(member_ids) and group_id is null;
+
+  update public.day_plans
+  set group_id = selected_group_id
+  where user_id = any(member_ids) and group_id is null;
+
+  update public.messages
+  set group_id = selected_group_id
+  where sender_id = any(member_ids) and group_id is null;
+
+  if exists (select 1 from public.templates where group_id is null)
+    or exists (select 1 from public.day_plans where group_id is null)
+    or exists (select 1 from public.messages where group_id is null) then
+    raise exception '发现不属于这三个账号的旧数据，迁移已回滚，请先核对账号';
+  end if;
+end
+$$;
+
+alter table public.templates alter column group_id set not null;
+alter table public.day_plans alter column group_id set not null;
+alter table public.messages alter column group_id set not null;
+
 create unique index if not exists templates_group_owner_day_type_key
   on public.templates(group_id, owner_id, day_type);
 create unique index if not exists day_plans_group_user_date_key
   on public.day_plans(group_id, user_id, date);
 
--- 4. 已下线的周复盘表。保留历史数据，前端不再引用。
-create table if not exists public.weekly_reviews (
-  id uuid primary key default gen_random_uuid(),
-  user_id uuid not null references public.users(id) on delete cascade,
-  week_start date not null,
-  goals jsonb not null default '[]'::jsonb,
-  review_note text,
-  updated_at timestamptz not null default now(),
-  unique (user_id, week_start)
-);
-
--- 5. 小组留言板
-create table if not exists public.messages (
-  id uuid primary key default gen_random_uuid(),
-  group_id uuid not null references public.checkin_groups(id) on delete cascade,
-  sender_id uuid not null references public.users(id) on delete cascade,
-  content text not null,
-  created_at timestamptz not null default now()
-);
-
-alter table public.messages add column if not exists group_id uuid references public.checkin_groups(id) on delete cascade;
-
--- 6. 新Auth账号自动补资料
-create or replace function public.handle_new_user()
-returns trigger
-language plpgsql
-security definer set search_path = public
-as $$
-begin
-  insert into public.users (id, name)
-  values (new.id, coalesce(new.raw_user_meta_data->>'name', split_part(new.email, '@', 1)))
-  on conflict (id) do nothing;
-  return new;
-end;
-$$;
-
-drop trigger if exists on_auth_user_created on auth.users;
-create trigger on_auth_user_created
-  after insert on auth.users
-  for each row execute function public.handle_new_user();
-
-insert into public.users (id, name)
-select id, split_part(email, '@', 1) from auth.users
-on conflict (id) do nothing;
-
--- 7. RLS辅助函数。SECURITY DEFINER用于避免group_members策略递归。
 create or replace function public.is_group_member(target_group_id uuid)
 returns boolean
 language sql
@@ -168,30 +203,21 @@ revoke all on function public.is_same_group_user(uuid) from public;
 grant execute on function public.is_group_member(uuid) to authenticated;
 grant execute on function public.is_same_group_user(uuid) to authenticated;
 
-alter table public.users enable row level security;
 alter table public.checkin_groups enable row level security;
 alter table public.group_members enable row level security;
-alter table public.templates enable row level security;
-alter table public.day_plans enable row level security;
-alter table public.weekly_reviews enable row level security;
-alter table public.messages enable row level security;
 
-drop policy if exists "authed_read_users" on public.users;
-drop policy if exists "group_read_users" on public.users;
-create policy "group_read_users" on public.users
-  for select to authenticated using (id = auth.uid() or public.is_same_group_user(id));
-
-drop policy if exists "update_own_profile" on public.users;
-create policy "update_own_profile" on public.users
-  for update to authenticated using (auth.uid() = id) with check (auth.uid() = id);
+drop policy if exists "group_members_read_group" on public.group_members;
+create policy "group_members_read_group" on public.group_members
+  for select to authenticated using (public.is_group_member(group_id));
 
 drop policy if exists "groups_read_own" on public.checkin_groups;
 create policy "groups_read_own" on public.checkin_groups
   for select to authenticated using (public.is_group_member(id));
 
-drop policy if exists "group_members_read_group" on public.group_members;
-create policy "group_members_read_group" on public.group_members
-  for select to authenticated using (public.is_group_member(group_id));
+drop policy if exists "authed_read_users" on public.users;
+drop policy if exists "group_read_users" on public.users;
+create policy "group_read_users" on public.users
+  for select to authenticated using (id = auth.uid() or public.is_same_group_user(id));
 
 drop policy if exists "authed_read_templates" on public.templates;
 drop policy if exists "group_read_templates" on public.templates;
@@ -233,23 +259,6 @@ drop policy if exists "delete_own_day_plan" on public.day_plans;
 create policy "delete_own_day_plan" on public.day_plans
   for delete to authenticated using (auth.uid() = user_id and public.is_group_member(group_id));
 
-drop policy if exists "authed_read_weekly_reviews" on public.weekly_reviews;
-drop policy if exists "group_read_weekly_reviews" on public.weekly_reviews;
-create policy "group_read_weekly_reviews" on public.weekly_reviews
-  for select to authenticated using (public.is_same_group_user(user_id));
-
-drop policy if exists "insert_own_weekly_review" on public.weekly_reviews;
-create policy "insert_own_weekly_review" on public.weekly_reviews
-  for insert to authenticated with check (auth.uid() = user_id);
-
-drop policy if exists "update_own_weekly_review" on public.weekly_reviews;
-create policy "update_own_weekly_review" on public.weekly_reviews
-  for update to authenticated using (auth.uid() = user_id) with check (auth.uid() = user_id);
-
-drop policy if exists "delete_own_weekly_review" on public.weekly_reviews;
-create policy "delete_own_weekly_review" on public.weekly_reviews
-  for delete to authenticated using (auth.uid() = user_id);
-
 drop policy if exists "authed_read_messages" on public.messages;
 drop policy if exists "group_read_messages" on public.messages;
 create policy "group_read_messages" on public.messages
@@ -264,20 +273,9 @@ drop policy if exists "delete_own_message" on public.messages;
 create policy "delete_own_message" on public.messages
   for delete to authenticated using (auth.uid() = sender_id and public.is_group_member(group_id));
 
--- 8. Realtime
-do $$
-begin
-  if not exists (
-    select 1 from pg_publication_tables
-    where pubname = 'supabase_realtime' and schemaname = 'public' and tablename = 'day_plans'
-  ) then
-    alter publication supabase_realtime add table public.day_plans;
-  end if;
-  if not exists (
-    select 1 from pg_publication_tables
-    where pubname = 'supabase_realtime' and schemaname = 'public' and tablename = 'messages'
-  ) then
-    alter publication supabase_realtime add table public.messages;
-  end if;
-end
-$$;
+drop policy if exists "authed_read_weekly_reviews" on public.weekly_reviews;
+drop policy if exists "group_read_weekly_reviews" on public.weekly_reviews;
+create policy "group_read_weekly_reviews" on public.weekly_reviews
+  for select to authenticated using (public.is_same_group_user(user_id));
+
+commit;

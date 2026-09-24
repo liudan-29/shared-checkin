@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { ArrowLeft, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 import { useSession } from "@/lib/use-session";
+import { fetchMyGroupContext } from "@/lib/groups";
 import { fetchTemplate, upsertTemplate } from "@/lib/templates";
 import { ensureDayPlan, mergeTemplateSlotsIntoDay, saveDayPlanSlots } from "@/lib/day-plan";
 import { getTodayDateString } from "@/lib/slot-status";
@@ -27,6 +28,8 @@ export default function TemplatePage() {
   const { session, user, loading: sessionLoading } = useSession();
 
   const [dayType, setDayType] = useState<DayType>("weekday");
+  const [groupId, setGroupId] = useState<string | null>(null);
+  const [notInGroup, setNotInGroup] = useState(false);
   const [slotsByType, setSlotsByType] = useState<Record<DayType, Slot[]>>({
     weekday: [],
     weekend: [],
@@ -47,15 +50,28 @@ export default function TemplatePage() {
   const loadTemplates = useCallback(async () => {
     if (!user) return;
     setLoading(true);
-    const [weekday, weekend] = await Promise.all([
-      fetchTemplate(user.id, "weekday"),
-      fetchTemplate(user.id, "weekend"),
-    ]);
-    setSlotsByType({
-      weekday: weekday?.slots ?? [],
-      weekend: weekend?.slots ?? [],
-    });
-    setLoading(false);
+    try {
+      const context = await fetchMyGroupContext(user.id);
+      if (!context) {
+        setGroupId(null);
+        setNotInGroup(true);
+        return;
+      }
+      setNotInGroup(false);
+      setGroupId(context.group.id);
+      const [weekday, weekend] = await Promise.all([
+        fetchTemplate(context.group.id, user.id, "weekday"),
+        fetchTemplate(context.group.id, user.id, "weekend"),
+      ]);
+      setSlotsByType({
+        weekday: weekday?.slots ?? [],
+        weekend: weekend?.slots ?? [],
+      });
+    } catch {
+      toast.error("模板加载失败，请稍后重试");
+    } finally {
+      setLoading(false);
+    }
   }, [user]);
 
   useEffect(() => {
@@ -63,12 +79,12 @@ export default function TemplatePage() {
   }, [user, loadTemplates]);
 
   async function persist(nextSlots: Slot[]) {
-    if (!user) return;
+    if (!user || !groupId) return;
     const prev = slotsByType;
     const sorted = [...nextSlots].sort((a, b) => a.start_time.localeCompare(b.start_time));
     setSlotsByType((s) => ({ ...s, [dayType]: sorted }));
     try {
-      await upsertTemplate(user.id, dayType, sorted);
+      await upsertTemplate(groupId, user.id, dayType, sorted);
       toast.success("已保存");
     } catch {
       setSlotsByType(prev);
@@ -93,9 +109,13 @@ export default function TemplatePage() {
   // 今天的day_plan如果还没生成过（今天还没打开过首页），先按今天的day_type建一份，
   // 跟主视图打开当天时的建行逻辑一致，这里只是提前触发
   async function handleOpenSync() {
-    if (!user) return;
-    const plan = await ensureDayPlan(user.id, TODAY, TODAY_DAY_TYPE);
-    setSyncDialog({ open: true, planId: plan.id, todaySlots: plan.slots });
+    if (!user || !groupId) return;
+    try {
+      const plan = await ensureDayPlan(groupId, user.id, TODAY, TODAY_DAY_TYPE);
+      setSyncDialog({ open: true, planId: plan.id, todaySlots: plan.slots });
+    } catch {
+      toast.error("今天的计划没加载成功，请稍后重试");
+    }
   }
 
   async function handleConfirmSync(selected: Slot[]) {
@@ -114,6 +134,18 @@ export default function TemplatePage() {
   }
 
   const slots = slotsByType[dayType];
+
+  if (!sessionLoading && notInGroup) {
+    return (
+      <main className="mx-auto flex min-h-screen max-w-[560px] items-center px-4 py-12">
+        <div className="w-full rounded-lg bg-card p-6 text-center shadow-sm">
+          <h1 className="font-display text-xl text-foreground">还没加入打卡小组</h1>
+          <p className="mt-2 text-base text-muted-foreground">加入三人小组后才能设置自己的模板。</p>
+          <Button className="mt-5" onClick={() => router.push("/")}>返回首页</Button>
+        </div>
+      </main>
+    );
+  }
 
   return (
     <main className="mx-auto max-w-[560px] px-4 py-6 pb-16">

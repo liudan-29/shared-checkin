@@ -1,6 +1,6 @@
 "use client";
 
-// 双方备注合并成一条时间线（不分栏），呼应"共享打卡"的产品概念
+// 三位成员的备注合并成一条时间线（不分栏），呼应"共享打卡"的产品概念
 export type NoteEntry = {
   who: string; // 头像首字用
   time: string; // 打卡时间 HH:mm

@@ -2,29 +2,20 @@
 
 import { X } from "lucide-react";
 import { Drawer, DrawerContent, DrawerTitle } from "@/components/ui/drawer";
-import { SummaryCompareTable } from "./SummaryCompareTable";
+import { SummaryCompareTable, type SummaryMember } from "./SummaryCompareTable";
 import { SummaryNotesList, type NoteEntry } from "./SummaryNotesList";
-import type { DaySummary } from "@/lib/day-summary";
 
 export function SummarySheet({
   open,
   onOpenChange,
   dateLabel,
-  peerName,
-  mine,
-  peer,
-  mineExists,
-  peerExists,
+  members,
   notes,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   dateLabel: string;
-  peerName: string;
-  mine: DaySummary;
-  peer: DaySummary;
-  mineExists: boolean;
-  peerExists: boolean;
+  members: SummaryMember[];
   notes: NoteEntry[];
 }) {
   return (
@@ -45,13 +36,7 @@ export function SummarySheet({
         <div className="mt-4 flex flex-col gap-4">
           <div className="flex flex-col gap-2">
             <span className="text-sm text-muted-foreground">完成情况</span>
-            <SummaryCompareTable
-              peerName={peerName}
-              mine={mine}
-              peer={peer}
-              mineExists={mineExists}
-              peerExists={peerExists}
-            />
+            <SummaryCompareTable members={members} />
           </div>
           <div className="flex flex-col gap-2">
             <span className="text-sm text-muted-foreground">备注</span>

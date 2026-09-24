@@ -6,7 +6,7 @@ import { WifiOff } from "lucide-react";
 import { toast } from "sonner";
 import { getSupabase } from "@/lib/supabase";
 import { useSession } from "@/lib/use-session";
-import { fetchProfiles } from "@/lib/profiles";
+import { fetchMyGroupContext } from "@/lib/groups";
 import { ensureDayPlan, fetchDaySlotsForDate, saveDayPlanSlots } from "@/lib/day-plan";
 import {
   getSlotStatus,
@@ -28,7 +28,8 @@ import type { DayPlan, Message, PlanSlot, Profile, Slot } from "@/lib/types";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Skeleton } from "@/components/ui/skeleton";
 import { DateTicket } from "@/components/DateTicket";
-import { PeerSummaryBar } from "@/components/PeerSummaryBar";
+import { MemberOverviewCard } from "@/components/MemberOverviewCard";
+import { MemberOverviewBar } from "@/components/MemberOverviewBar";
 import { SlotCard } from "@/components/SlotCard";
 import { AddSlotRow } from "@/components/AddSlotRow";
 import {
@@ -49,6 +50,7 @@ import { MessageHistoryDialog } from "@/components/MessageHistoryDialog";
 import { ShareNoteToBoardDialog } from "@/components/ShareNoteToBoardDialog";
 import { fetchRecentMessages, postMessage, subscribeNewMessages, deleteMessage } from "@/lib/messages";
 import type { NoteEntry } from "@/components/SummaryNotesList";
+import type { SummaryMember } from "@/components/SummaryCompareTable";
 
 const TODAY = getTodayDateString();
 const MIN_DATE = addDays(TODAY, -180);
@@ -63,12 +65,14 @@ export default function MainPage() {
   const { session, user, loading: sessionLoading } = useSession();
 
   const [profiles, setProfiles] = useState<Profile[]>([]);
+  const [groupId, setGroupId] = useState<string | null>(null);
+  const [notInGroup, setNotInGroup] = useState(false);
+  const [dataError, setDataError] = useState<string | null>(null);
   const [viewDate, setViewDate] = useState(TODAY);
-  const [myView, setMyView] = useState<SideView>(EMPTY_VIEW);
-  const [peerView, setPeerView] = useState<SideView>(EMPTY_VIEW);
+  const [memberViews, setMemberViews] = useState<Record<string, SideView>>({});
   const [dataLoading, setDataLoading] = useState(true);
   const [tick, setTick] = useState(0);
-  const [activeTab, setActiveTab] = useState<"mine" | "peer">("mine");
+  const [activeMemberId, setActiveMemberId] = useState("");
   const [connected, setConnected] = useState(true);
   const [checkingSlotId, setCheckingSlotId] = useState<string | null>(null);
   const [editor, setEditor] = useState<{ open: boolean; slot?: PlanSlot }>({ open: false });
@@ -90,8 +94,13 @@ export default function MainPage() {
 
   const disconnectTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const me = useMemo(() => profiles.find((p) => p.id === user?.id) ?? null, [profiles, user]);
-  const peer = useMemo(() => profiles.find((p) => p.id !== user?.id) ?? null, [profiles, user]);
+  const members = useMemo(() => {
+    if (!user) return profiles;
+    const me = profiles.find((profile) => profile.id === user.id);
+    return me ? [me, ...profiles.filter((profile) => profile.id !== user.id)] : profiles;
+  }, [profiles, user]);
+  const me = members.find((profile) => profile.id === user?.id) ?? null;
+  const myView = user ? memberViews[user.id] ?? EMPTY_VIEW : EMPTY_VIEW;
   const dateMode: DateMode = getDateMode(viewDate, TODAY);
   const viewedDayType = dayTypeOf(parseDateString(viewDate));
   const isToday = dateMode === "today";
@@ -105,12 +114,12 @@ export default function MainPage() {
   // 载入某一侧某天的数据。今天可写用 ensureDayPlan 建行；过去只读取；未来从模板生成预览
   // 只读分支复用 fetchDaySlotsForDate（和周报页面共用同一份"历史/未来怎么取数据"的逻辑）
   const loadSide = useCallback(
-    async (uid: string, date: string, mode: DateMode, writable: boolean): Promise<SideView> => {
+    async (gid: string, uid: string, date: string, mode: DateMode, writable: boolean): Promise<SideView> => {
       if (mode === "today" && writable) {
-        const plan = await ensureDayPlan(uid, date, dayTypeOf(parseDateString(date)));
+        const plan = await ensureDayPlan(gid, uid, date, dayTypeOf(parseDateString(date)));
         return { slots: plan.slots, exists: true, planId: plan.id };
       }
-      return fetchDaySlotsForDate(uid, date, mode === "today" ? "current" : mode);
+      return fetchDaySlotsForDate(gid, uid, date, mode === "today" ? "current" : mode);
     },
     []
   );
@@ -118,21 +127,37 @@ export default function MainPage() {
   const loadData = useCallback(async () => {
     if (!user) return;
     setDataLoading(true);
-    const profileList = await fetchProfiles();
-    setProfiles(profileList);
-    const peerProfile = profileList.find((p) => p.id !== user.id);
+    setDataError(null);
+    setNotInGroup(false);
+    try {
+      const context = await fetchMyGroupContext(user.id);
+      if (!context) {
+        setGroupId(null);
+        setProfiles([]);
+        setMemberViews({});
+        setNotInGroup(true);
+        return;
+      }
+      setNotInGroup(false);
+      setGroupId(context.group.id);
+      setProfiles(context.members);
+      setActiveMemberId((current) =>
+        context.members.some((profile) => profile.id === current) ? current : user.id
+      );
 
-    const mode = getDateMode(viewDate, TODAY);
-    const mine = await loadSide(user.id, viewDate, mode, true);
-    setMyView(mine);
-
-    if (peerProfile) {
-      const peerData = await loadSide(peerProfile.id, viewDate, mode, false);
-      setPeerView(peerData);
-    } else {
-      setPeerView(EMPTY_VIEW);
+      const mode = getDateMode(viewDate, TODAY);
+      const entries = await Promise.all(
+        context.members.map(async (profile) => [
+          profile.id,
+          await loadSide(context.group.id, profile.id, viewDate, mode, profile.id === user.id),
+        ] as const)
+      );
+      setMemberViews(Object.fromEntries(entries));
+    } catch {
+      setDataError("小组数据没有加载成功，请检查网络后重试");
+    } finally {
+      setDataLoading(false);
     }
-    setDataLoading(false);
   }, [user, viewDate, loadSide]);
 
   useEffect(() => {
@@ -147,7 +172,7 @@ export default function MainPage() {
 
   // 实时订阅只对"今天"生效：查看历史/未来时不需要实时推送
   useEffect(() => {
-    if (!user || !isToday) return;
+    if (!user || !groupId || !isToday) return;
     const supabase = getSupabase();
     const channel = supabase
       .channel(`day_plans_${TODAY}`)
@@ -156,9 +181,11 @@ export default function MainPage() {
         { event: "UPDATE", schema: "public", table: "day_plans", filter: `date=eq.${TODAY}` },
         (payload) => {
           const updated = payload.new as DayPlan;
-          if (updated.user_id === user.id)
-            setMyView({ slots: updated.slots, exists: true, planId: updated.id });
-          else setPeerView({ slots: updated.slots, exists: true, planId: updated.id });
+          if (updated.group_id !== groupId) return;
+          setMemberViews((current) => ({
+            ...current,
+            [updated.user_id]: { slots: updated.slots, exists: true, planId: updated.id },
+          }));
         }
       )
       .on(
@@ -166,8 +193,11 @@ export default function MainPage() {
         { event: "INSERT", schema: "public", table: "day_plans", filter: `date=eq.${TODAY}` },
         (payload) => {
           const inserted = payload.new as DayPlan;
-          if (inserted.user_id !== user.id)
-            setPeerView({ slots: inserted.slots, exists: true, planId: inserted.id });
+          if (inserted.group_id !== groupId) return;
+          setMemberViews((current) => ({
+            ...current,
+            [inserted.user_id]: { slots: inserted.slots, exists: true, planId: inserted.id },
+          }));
         }
       )
       .subscribe((status) => {
@@ -186,14 +216,14 @@ export default function MainPage() {
       if (disconnectTimer.current) clearTimeout(disconnectTimer.current);
       supabase.removeChannel(channel);
     };
-  }, [user, isToday]);
+  }, [user, groupId, isToday]);
 
   // 留言板：跟viewDate/dateMode完全无关，固定加载，不随翻看历史/未来变化
   useEffect(() => {
-    if (!user) return;
+    if (!user || !groupId) return;
     let cancelled = false;
     setMessagesLoading(true);
-    fetchRecentMessages()
+    fetchRecentMessages(groupId)
       .then((data) => {
         if (!cancelled) setRawMessages(data);
       })
@@ -203,34 +233,37 @@ export default function MainPage() {
     return () => {
       cancelled = true;
     };
-  }, [user]);
+  }, [user, groupId]);
 
   useEffect(() => {
-    if (!user) return;
-    return subscribeNewMessages((msg) => {
+    if (!user || !groupId) return;
+    return subscribeNewMessages(groupId, (msg) => {
       // 自己发的留言会先被本地乐观更新加进去，Realtime广播会给发送者自己也推一份，
       // 这里按id去重，避免同一条留言在列表里出现两次
       setRawMessages((prev) => (prev.some((m) => m.id === msg.id) ? prev : [msg, ...prev].slice(0, 20)));
     });
-  }, [user]);
+  }, [user, groupId]);
 
   const messageViews: MessageView[] = useMemo(
     () =>
       rawMessages.map((m) => ({
         id: m.id,
         content: m.content,
-        authorLabel: user && m.sender_id === user.id ? "我" : peer?.name ?? "TA",
+        authorLabel:
+          user && m.sender_id === user.id
+            ? "我"
+            : members.find((profile) => profile.id === m.sender_id)?.name ?? "成员",
         isMine: user ? m.sender_id === user.id : false,
         createdAt: m.created_at,
       })),
-    [rawMessages, user, peer]
+    [rawMessages, user, members]
   );
 
   async function handlePostMessage(content: string) {
-    if (!user) return;
+    if (!user || !groupId) return;
     setComposerSubmitting(true);
     try {
-      const created = await postMessage(user.id, content);
+      const created = await postMessage(groupId, user.id, content);
       setRawMessages((prev) => (prev.some((m) => m.id === created.id) ? prev : [created, ...prev].slice(0, 20)));
       setComposerOpen(false);
       toast.success("已发布");
@@ -261,10 +294,10 @@ export default function MainPage() {
   }
 
   async function handleConfirmShareNote() {
-    if (!user) return;
+    if (!user || !groupId) return;
     setShareNoteSubmitting(true);
     try {
-      const created = await postMessage(user.id, shareNote.content);
+      const created = await postMessage(groupId, user.id, shareNote.content);
       setRawMessages((prev) => (prev.some((m) => m.id === created.id) ? prev : [created, ...prev].slice(0, 20)));
       setShareNote({ open: false, content: "" });
       toast.success("已发布到留言板");
@@ -288,31 +321,32 @@ export default function MainPage() {
   ) {
     if (!isToday || !myView.planId) return;
     const prev = myView;
-    setMyView({ ...myView, slots: nextSlots });
+    if (!user) return;
+    setMemberViews((current) => ({ ...current, [user.id]: { ...myView, slots: nextSlots } }));
     try {
       await saveDayPlanSlots(myView.planId, nextSlots);
       if (successMsg) toast.success(successMsg);
       onSuccess?.();
     } catch {
-      setMyView(prev);
+      setMemberViews((current) => ({ ...current, [user.id]: prev }));
       onFail?.();
     }
   }
 
   async function handleCheck(slot: PlanSlot, note: string | null = null) {
-    if (!isToday || !myView.planId) return;
+    if (!user || !isToday || !myView.planId) return;
     setCheckingSlotId(slot.id);
     const updatedSlots = myView.slots.map((s) =>
       s.id === slot.id ? { ...s, done: true, checked_at: new Date().toISOString(), note } : s
     );
     const prev = myView;
-    setMyView({ ...myView, slots: updatedSlots });
+    setMemberViews((current) => ({ ...current, [user.id]: { ...myView, slots: updatedSlots } }));
     try {
       await saveDayPlanSlots(myView.planId, updatedSlots);
       toast.success(`已打卡·${new Date().toTimeString().slice(0, 5)}`);
       offerShareNote(note);
     } catch {
-      setMyView(prev);
+      setMemberViews((current) => ({ ...current, [user.id]: prev }));
       toast.error("打卡没同步上", {
         action: { label: "重试", onClick: () => handleCheck(slot, note) },
       });
@@ -373,7 +407,7 @@ export default function MainPage() {
 
   if (sessionLoading || dataLoading) {
     return (
-      <main className="mx-auto max-w-[960px] px-4 py-6">
+      <main className="mx-auto max-w-[1360px] px-4 py-6">
         <Skeleton className="h-32 w-full" />
         <div className="mt-4 space-y-3">
           <Skeleton className="h-20 w-full" />
@@ -384,41 +418,80 @@ export default function MainPage() {
     );
   }
 
+  if (notInGroup) {
+    return (
+      <main className="mx-auto flex min-h-screen max-w-[560px] items-center px-4 py-12">
+        <div className="w-full rounded-lg bg-card p-6 text-center shadow-sm">
+          <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-ink-subtle font-display text-ink">组</div>
+          <h1 className="mt-4 font-display text-xl text-foreground">还没加入打卡小组</h1>
+          <p className="mt-2 text-base text-muted-foreground">账号已经登录，但管理员还没有把你加入三人小组。</p>
+          <button type="button" onClick={handleLogout} className="mt-5 h-11 rounded-md bg-primary px-5 text-primary-foreground transition-colors hover:bg-ink-hover">退出登录</button>
+        </div>
+      </main>
+    );
+  }
+
+  if (dataError) {
+    return (
+      <main className="mx-auto flex min-h-screen max-w-[560px] items-center px-4 py-12">
+        <div className="w-full rounded-lg bg-card p-6 text-center shadow-sm">
+          <WifiOff className="mx-auto h-10 w-10 text-danger" />
+          <h1 className="mt-4 font-display text-xl text-foreground">小组数据没连上</h1>
+          <p className="mt-2 text-base text-muted-foreground">{dataError}</p>
+          <button type="button" onClick={() => loadData()} className="mt-5 h-11 rounded-md bg-primary px-5 text-primary-foreground transition-colors hover:bg-ink-hover">
+            重新加载
+          </button>
+        </div>
+      </main>
+    );
+  }
+
   const summaryMode = dateMode === "today" ? "current" : dateMode === "past" ? "past" : "future";
-  const mySlots = myView.slots;
-  const peerSlots = peerView.slots;
-
-  const myStatuses = mySlots.map((s) => getSlotStatusForDate(s, now, dateMode));
-  const peerStatuses = peerSlots.map((s) => getSlotStatusForDate(s, now, dateMode));
+  const memberStates = members.map((profile) => {
+    const view = memberViews[profile.id] ?? EMPTY_VIEW;
+    const statuses = view.slots.map((slot) => getSlotStatusForDate(slot, now, dateMode));
+    const overdueSlot = view.slots.find((slot, index) => statuses[index] === "overdue");
+    return {
+      profile,
+      view,
+      statuses,
+      overdueText: overdueSlot ? formatOverdue(getOverdueMinutes(overdueSlot, now)) : null,
+      inProgressTask: view.slots.find((slot, index) => statuses[index] === "in-progress")?.task ?? null,
+      summary: computeDaySummary(view.slots, now, summaryMode),
+    };
+  });
+  const myState = memberStates.find((state) => state.profile.id === user?.id);
+  const mySlots = myState?.view.slots ?? [];
+  const myStatuses = myState?.statuses ?? [];
   const doneCount = mySlots.filter((s) => s.done).length;
-
-  // 对方摘要条（只在今天有意义）
-  const peerOverdueSlot = peerSlots.find((s, i) => peerStatuses[i] === "overdue");
-  const peerOverdueText = peerOverdueSlot
-    ? formatOverdue(getOverdueMinutes(peerOverdueSlot, now))
-    : null;
-  const peerInProgress = peerSlots.find((s, i) => peerStatuses[i] === "in-progress");
-
-  // 每日总结数据
-  const mySummary = computeDaySummary(mySlots, now, summaryMode);
-  const peerSummary = computeDaySummary(peerSlots, now, summaryMode);
-  const noteEntries: NoteEntry[] = [
-    ...mySlots
-      .filter((s) => s.done && s.note?.trim())
-      .map((s) => ({ who: "我", time: fmt(s.checked_at), task: s.task, note: s.note!.trim() })),
-    ...peerSlots
-      .filter((s) => s.done && s.note?.trim())
-      .map((s) => ({
-        who: peer?.name ?? "TA",
-        time: fmt(s.checked_at),
-        task: s.task,
-        note: s.note!.trim(),
-      })),
-  ].sort((a, b) => a.time.localeCompare(b.time));
+  const summaryMembers: SummaryMember[] = memberStates.map((state) => ({
+    id: state.profile.id,
+    name: state.profile.name,
+    summary: state.summary,
+    exists: state.view.exists,
+    isMine: state.profile.id === user?.id,
+  }));
+  const noteEntries: NoteEntry[] = memberStates
+    .flatMap((state) =>
+      state.view.slots
+        .filter((slot) => slot.done && slot.note?.trim())
+        .map((slot) => ({
+          who: state.profile.id === user?.id ? "我" : state.profile.name,
+          time: fmt(slot.checked_at),
+          task: slot.task,
+          note: slot.note!.trim(),
+        }))
+    )
+    .sort((a, b) => a.time.localeCompare(b.time));
 
   const cardMode = dateMode === "today" ? "live" : dateMode === "past" ? "readonly" : "preview";
 
-  function renderSlotList(slots: PlanSlot[], statuses: ReturnType<typeof getSlotStatus>[], variant: "mine" | "peer") {
+  function renderSlotList(
+    memberId: string,
+    slots: PlanSlot[],
+    statuses: ReturnType<typeof getSlotStatus>[],
+    variant: "mine" | "peer"
+  ) {
     if (slots.length === 0) {
       if (dateMode === "today") {
         return variant === "mine" ? (
@@ -457,7 +530,7 @@ export default function MainPage() {
               lateText={lateText}
               mode={cardMode}
               checking={checkingSlotId === slot.id}
-              onCheck={variant === "mine" ? () => setCheckinDialog({ open: true, slot }) : undefined}
+              onCheck={variant === "mine" && memberId === user?.id ? () => setCheckinDialog({ open: true, slot }) : undefined}
               onUncheck={variant === "mine" ? () => handleUncheck(slot) : undefined}
               onEdit={variant === "mine" ? () => setEditor({ open: true, slot }) : undefined}
             />
@@ -473,24 +546,46 @@ export default function MainPage() {
   const viewDateObj = parseDateString(viewDate);
 
   return (
-    <main className="mx-auto max-w-[960px] px-4 py-6 pb-16">
-      <DateTicket
-        date={viewDateObj}
-        mode={dateMode}
-        viewedDayType={viewedDayType}
-        myStatuses={myStatuses}
-        doneCount={doneCount}
-        totalCount={mySlots.length}
-        onPrev={() => setViewDate((d) => (d <= MIN_DATE ? d : addDays(d, -1)))}
-        onNext={() => setViewDate((d) => (d >= MAX_DATE ? d : addDays(d, 1)))}
-        onJumpToday={() => setViewDate(TODAY)}
-        onOpenTemplate={() => router.push("/template")}
-        onOpenSummary={() => setSummaryOpen(true)}
-        onOpenDateJump={() => setDateJumpOpen(true)}
-        onLogout={handleLogout}
-        prevDisabled={viewDate <= MIN_DATE}
-        nextDisabled={viewDate >= MAX_DATE}
-      />
+    <main className="mx-auto max-w-[1360px] px-4 py-6 pb-16">
+      <div className="min-[1200px]:grid min-[1200px]:grid-cols-[328px_minmax(0,1fr)] min-[1200px]:gap-6">
+        <DateTicket
+          date={viewDateObj}
+          mode={dateMode}
+          viewedDayType={viewedDayType}
+          myStatuses={myStatuses}
+          doneCount={doneCount}
+          totalCount={mySlots.length}
+          onPrev={() => setViewDate((d) => (d <= MIN_DATE ? d : addDays(d, -1)))}
+          onNext={() => setViewDate((d) => (d >= MAX_DATE ? d : addDays(d, 1)))}
+          onJumpToday={() => setViewDate(TODAY)}
+          onOpenTemplate={() => router.push("/template")}
+          onOpenSummary={() => setSummaryOpen(true)}
+          onOpenDateJump={() => setDateJumpOpen(true)}
+          onLogout={handleLogout}
+          prevDisabled={viewDate <= MIN_DATE}
+          nextDisabled={viewDate >= MAX_DATE}
+        />
+
+        <div className="mt-4 hidden gap-3 md:grid md:grid-cols-2 min-[1200px]:mt-0 min-[1200px]:grid-cols-3">
+          {memberStates.map((state) => (
+            <MemberOverviewCard
+              key={state.profile.id}
+              name={state.profile.name}
+              isMine={state.profile.id === user?.id}
+              statuses={state.statuses}
+              doneCount={state.view.slots.filter((slot) => slot.done).length}
+              totalCount={state.view.slots.length}
+              overdueText={state.overdueText}
+              inProgressTask={state.inProgressTask}
+            />
+          ))}
+          {Array.from({ length: Math.max(0, 3 - memberStates.length) }).map((_, index) => (
+            <div key={`empty-overview-${index}`} className="flex min-h-[156px] items-center justify-center rounded-lg border border-dashed border-border bg-card p-4 text-center text-base text-muted-foreground">
+              等待第三位成员加入
+            </div>
+          ))}
+        </div>
+      </div>
 
       {!connected && isToday && (
         <div
@@ -502,6 +597,25 @@ export default function MainPage() {
         </div>
       )}
 
+      <div className="mt-4 flex flex-col gap-2 md:hidden">
+        {memberStates.map((state) => (
+          <MemberOverviewBar
+            key={state.profile.id}
+            name={state.profile.id === user?.id ? "我" : state.profile.name}
+            statuses={state.statuses}
+            overdueText={state.overdueText}
+            inProgressTask={state.inProgressTask}
+            selected={activeMemberId === state.profile.id}
+            onClick={() => setActiveMemberId(state.profile.id)}
+          />
+        ))}
+        {memberStates.length < 3 && (
+          <div className="flex min-h-14 items-center justify-center rounded-md border border-dashed border-border bg-card px-4 text-base text-muted-foreground">
+            还差{3 - memberStates.length}位成员加入
+          </div>
+        )}
+      </div>
+
       {/* 留言板：固定存在，不随viewDate/dateMode/tab切换而变化或消失 */}
       <div className="mt-4">
         <MessageBoard
@@ -512,59 +626,54 @@ export default function MainPage() {
         />
       </div>
 
-      {/* 移动端：分段切换 */}
+      {/* 移动端：三位成员分段切换 */}
       <div className="mt-4 md:hidden">
-        <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as "mine" | "peer")}>
-          <TabsList className="w-full">
-            <TabsTrigger value="mine">我的</TabsTrigger>
-            <TabsTrigger value="peer">
-              {peer?.name ?? "TA"}的
-              {peerOverdueText && (
-                <span
-                  className="ml-1 h-1.5 w-1.5 rounded-full"
-                  style={{ backgroundColor: "var(--color-danger)" }}
-                />
-              )}
-            </TabsTrigger>
+        <Tabs value={activeMemberId || user?.id || ""} onValueChange={setActiveMemberId}>
+          <TabsList className="grid w-full grid-cols-3">
+            {memberStates.map((state) => (
+              <TabsTrigger key={state.profile.id} value={state.profile.id} className="min-h-11 min-w-0">
+                <span className="truncate">{state.profile.id === user?.id ? "我" : state.profile.name}</span>
+                {state.overdueText && <span className="ml-1 h-1.5 w-1.5 shrink-0 rounded-full bg-danger" />}
+              </TabsTrigger>
+            ))}
           </TabsList>
-
-          {isToday && (
-            <div className="mt-3">
-              <PeerSummaryBar
-                name={peer?.name ?? "TA"}
-                statuses={peerStatuses}
-                overdueText={peerOverdueText}
-                inProgressTask={peerInProgress?.task ?? null}
-                onClick={() => setActiveTab("peer")}
-              />
-            </div>
-          )}
-
-          <TabsContent value="mine">{renderSlotList(mySlots, myStatuses, "mine")}</TabsContent>
-          <TabsContent value="peer">{renderSlotList(peerSlots, peerStatuses, "peer")}</TabsContent>
+          {memberStates.map((state) => (
+            <TabsContent key={state.profile.id} value={state.profile.id}>
+              {renderSlotList(
+                state.profile.id,
+                state.view.slots,
+                state.statuses,
+                state.profile.id === user?.id ? "mine" : "peer"
+              )}
+            </TabsContent>
+          ))}
         </Tabs>
       </div>
 
-      {/* 桌面端：双栏并列 */}
-      <div className="mt-6 hidden gap-6 md:grid md:grid-cols-2">
-        <div>
-          <div className="mb-3 flex items-center gap-2">
-            <span className="flex h-6 w-6 items-center justify-center rounded-full bg-ink-subtle text-sm font-display text-ink">
-              我
-            </span>
-            <span className="text-base text-foreground">{me?.name ?? "我"}</span>
+      {/* 桌面端：中屏两列、大屏三列 */}
+      <div className="mt-6 hidden gap-6 md:grid md:grid-cols-2 min-[1200px]:grid-cols-3">
+        {memberStates.map((state) => {
+          const isMine = state.profile.id === user?.id;
+          return (
+            <div key={state.profile.id} className="min-w-0">
+              <div className="mb-3 flex h-9 items-center gap-2 border-b border-dashed border-border pb-3">
+                <span className="flex h-6 w-6 items-center justify-center rounded-full bg-ink-subtle text-sm font-display text-ink">
+                  {isMine ? "我" : state.profile.name.slice(0, 1)}
+                </span>
+                <span className="truncate text-base text-foreground">{isMine ? me?.name ?? "我" : state.profile.name}</span>
+                <span className="ml-auto font-mono text-sm text-muted-foreground">
+                  {state.view.slots.filter((slot) => slot.done).length}/{state.view.slots.length}
+                </span>
+              </div>
+              {renderSlotList(state.profile.id, state.view.slots, state.statuses, isMine ? "mine" : "peer")}
+            </div>
+          );
+        })}
+        {Array.from({ length: Math.max(0, 3 - memberStates.length) }).map((_, index) => (
+          <div key={`empty-member-${index}`} className="rounded-lg border border-dashed border-border bg-card p-6 text-center text-base text-muted-foreground">
+            还差一位成员加入
           </div>
-          {renderSlotList(mySlots, myStatuses, "mine")}
-        </div>
-        <div>
-          <div className="mb-3 flex items-center gap-2">
-            <span className="flex h-6 w-6 items-center justify-center rounded-full bg-ink-subtle text-sm font-display text-ink">
-              {(peer?.name ?? "TA").slice(0, 1)}
-            </span>
-            <span className="text-base text-foreground">{peer?.name ?? "TA"}</span>
-          </div>
-          {renderSlotList(peerSlots, peerStatuses, "peer")}
-        </div>
+        ))}
       </div>
 
       <SlotEditorSheet
@@ -612,11 +721,7 @@ export default function MainPage() {
         open={summaryOpen}
         onOpenChange={setSummaryOpen}
         dateLabel={`${viewDateObj.getMonth() + 1}月${viewDateObj.getDate()}日`}
-        peerName={peer?.name ?? "TA"}
-        mine={mySummary}
-        peer={peerSummary}
-        mineExists={myView.exists}
-        peerExists={peerView.exists}
+        members={summaryMembers}
         notes={noteEntries}
       />
 

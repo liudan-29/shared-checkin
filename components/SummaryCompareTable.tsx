@@ -3,112 +3,85 @@
 import { cn } from "@/lib/utils";
 import { formatDurationHM, type DaySummary } from "@/lib/day-summary";
 
-function Avatar({ name }: { name: string }) {
-  return (
-    <span className="flex h-7 w-7 items-center justify-center rounded-full bg-ink-subtle text-sm font-display text-ink">
-      {name.slice(0, 1)}
-    </span>
-  );
-}
+export type SummaryMember = {
+  id: string;
+  name: string;
+  summary: DaySummary;
+  exists: boolean;
+  isMine: boolean;
+};
 
-// higher: 值越大越优（完成率/完成数）；lower: 值越小越优（拖延次数/时长）
-function pickWinner(mine: number, peer: number, better: "higher" | "lower"): "mine" | "peer" | "tie" {
-  if (mine === peer) return "tie";
-  if (better === "higher") return mine > peer ? "mine" : "peer";
-  return mine < peer ? "mine" : "peer";
-}
-
-function Row({
-  label,
-  mineText,
-  peerText,
-  winner,
-}: {
+type Metric = {
   label: string;
-  mineText: string;
-  peerText: string;
-  winner: "mine" | "peer" | "tie";
-}) {
-  const cell = (side: "mine" | "peer", text: string) =>
-    winner === side ? (
-      <span className="text-right font-mono text-base font-semibold text-ink">{text}</span>
-    ) : (
-      <span
-        className={cn(
-          "text-right font-mono text-base",
-          winner === "tie" ? "text-foreground" : "text-muted-foreground"
-        )}
-      >
-        {text}
-      </span>
-    );
+  better: "higher" | "lower";
+  value: (member: SummaryMember) => number;
+  text: (member: SummaryMember) => string;
+};
 
-  return (
-    <div className="grid grid-cols-[auto_1fr_1fr] items-center gap-2">
-      <span className="text-sm text-muted-foreground">{label}</span>
-      {cell("mine", mineText)}
-      {cell("peer", peerText)}
-    </div>
-  );
+const metrics: Metric[] = [
+  { label: "完成率", better: "higher", value: (m) => m.summary.completionRate, text: (m) => m.summary.totalSlots > 0 ? `${Math.round(m.summary.completionRate * 100)}%` : "—" },
+  { label: "完成数", better: "higher", value: (m) => m.summary.doneSlots, text: (m) => m.summary.totalSlots > 0 ? `${m.summary.doneSlots}/${m.summary.totalSlots}` : "—" },
+  { label: "拖延次数", better: "lower", value: (m) => m.summary.overdueSlots, text: (m) => m.summary.totalSlots > 0 ? `${m.summary.overdueSlots}次` : "—" },
+  { label: "拖延时长", better: "lower", value: (m) => m.summary.totalOverdueMinutes, text: (m) => m.summary.totalSlots > 0 ? formatDurationHM(m.summary.totalOverdueMinutes) : "—" },
+];
+
+function bestIds(members: SummaryMember[], metric: Metric): Set<string> {
+  const available = members.filter((m) => m.summary.totalSlots > 0);
+  if (!available.length) return new Set();
+  const values = available.map(metric.value);
+  const best = metric.better === "higher" ? Math.max(...values) : Math.min(...values);
+  return new Set(available.filter((m) => metric.value(m) === best).map((m) => m.id));
 }
 
-export function SummaryCompareTable({
-  peerName,
-  mine,
-  peer,
-  mineExists,
-  peerExists,
-}: {
-  peerName: string;
-  mine: DaySummary;
-  peer: DaySummary;
-  mineExists: boolean;
-  peerExists: boolean;
-}) {
-  const rateText = (s: DaySummary, exists: boolean) =>
-    exists && s.totalSlots > 0 ? `${Math.round(s.completionRate * 100)}%` : "—";
+function Avatar({ name }: { name: string }) {
+  return <span className="flex h-7 w-7 items-center justify-center rounded-full bg-ink-subtle text-sm font-display text-ink">{name.slice(0, 1)}</span>;
+}
 
+export function SummaryCompareTable({ members }: { members: SummaryMember[] }) {
   return (
     <div className="rounded-lg bg-card p-4 shadow-sm">
-      <div className="grid grid-cols-[auto_1fr_1fr] items-center gap-2">
-        <span />
-        <div className="flex flex-col items-center gap-1">
-          <Avatar name="我" />
-          <span className="text-base text-foreground">我</span>
+      <div className="hidden sm:block">
+        <div className="grid grid-cols-[96px_repeat(3,minmax(0,1fr))] items-center gap-2">
+          <span />
+          {members.map((member) => (
+            <div key={member.id} className="flex min-w-0 flex-col items-center gap-1">
+              <Avatar name={member.isMine ? "我" : member.name} />
+              <span className="max-w-full truncate text-base text-foreground">{member.isMine ? "我" : member.name}</span>
+            </div>
+          ))}
         </div>
-        <div className="flex flex-col items-center gap-1">
-          <Avatar name={peerName} />
-          <span className="text-base text-foreground">{peerName}</span>
+        <div className="my-3" style={{ borderTop: "1px dashed var(--color-border-default)" }} />
+        <div className="flex flex-col gap-3">
+          {metrics.map((metric) => {
+            const winners = bestIds(members, metric);
+            return (
+              <div key={metric.label} className="grid grid-cols-[96px_repeat(3,minmax(0,1fr))] items-center gap-2">
+                <span className="text-sm text-muted-foreground">{metric.label}</span>
+                {members.map((member) => (
+                  <span key={member.id} className={cn("text-right font-mono text-base", winners.has(member.id) ? "font-semibold text-ink" : "text-muted-foreground")}>{metric.text(member)}</span>
+                ))}
+              </div>
+            );
+          })}
         </div>
       </div>
-
-      <div className="my-3" style={{ borderTop: "1px dashed var(--color-border-default)" }} />
-
-      <div className="flex flex-col gap-3">
-        <Row
-          label="完成率"
-          mineText={rateText(mine, mineExists)}
-          peerText={rateText(peer, peerExists)}
-          winner={pickWinner(mine.completionRate, peer.completionRate, "higher")}
-        />
-        <Row
-          label="完成数"
-          mineText={`${mine.doneSlots}/${mine.totalSlots}`}
-          peerText={`${peer.doneSlots}/${peer.totalSlots}`}
-          winner={pickWinner(mine.doneSlots, peer.doneSlots, "higher")}
-        />
-        <Row
-          label="拖延次数"
-          mineText={`${mine.overdueSlots}次`}
-          peerText={`${peer.overdueSlots}次`}
-          winner={pickWinner(mine.overdueSlots, peer.overdueSlots, "lower")}
-        />
-        <Row
-          label="拖延时长"
-          mineText={formatDurationHM(mine.totalOverdueMinutes)}
-          peerText={formatDurationHM(peer.totalOverdueMinutes)}
-          winner={pickWinner(mine.totalOverdueMinutes, peer.totalOverdueMinutes, "lower")}
-        />
+      <div className="grid gap-3 sm:hidden">
+        {members.map((member) => (
+          <div key={member.id} className="rounded-md p-3" style={{ backgroundColor: "var(--color-bg-tertiary)" }}>
+            <div className="mb-2 flex items-center gap-2"><Avatar name={member.isMine ? "我" : member.name} /><span className="truncate text-base text-foreground">{member.isMine ? "我" : member.name}</span></div>
+            <div className="grid grid-cols-2 gap-x-4 gap-y-2">
+              {metrics.map((metric) => {
+                const winners = bestIds(members, metric);
+                return (
+                  <div key={metric.label} className="flex items-center justify-between gap-2">
+                    <span className="text-sm text-muted-foreground">{metric.label}</span>
+                    <span className={cn("font-mono text-sm", winners.has(member.id) ? "font-semibold text-ink" : "text-foreground")}>{metric.text(member)}</span>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        ))}
       </div>
     </div>
   );

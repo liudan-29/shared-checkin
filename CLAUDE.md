@@ -1,8 +1,8 @@
-# CLAUDE.md - 两人共享打卡网页
+# CLAUDE.md - 三人共享打卡网页
 
 ## 项目定位
 
-Next.js + Supabase 的两人协作打卡 Web App。核心是"实时同步"和"社交监督"：一方打卡对方 1 秒内看到，某时段超时未完成对方界面上会显示拖延时长。
+Next.js+Supabase的固定三人协作打卡Web App。核心是实时同步和社交监督：任意成员打卡，另外两人约1秒内看到；某时段超时未完成，另外两人的界面会显示拖延时长。
 
 ## 技术栈
 
@@ -18,12 +18,13 @@ Next.js + Supabase 的两人协作打卡 Web App。核心是"实时同步"和"�
 ├── app/                  Next.js App Router 页面
 │   ├── login/            登录页
 │   ├── template/         模板编辑页
-│   └── page.tsx          主视图（双栏时段表，支持按viewDate翻看历史/今天/未来）
+│   └── page.tsx          主视图（桌面三栏、手机三成员切换，支持按viewDate翻看历史/今天/未来）
 ├── components/           共享组件（HistoryTag/MissedMark/SummarySheet等只读/预览/总结相关；MonthGrid/DateJumpSheet日历选择器；MessageBoard/MessageComposerDialog/MessageHistoryDialog/ShareNoteToBoardDialog留言板；SyncTemplateDialog模板同步）
 ├── components/ui/        shadcn/ui基础组件（button/dialog/drawer/alert-dialog/dropdown-menu/input/label/tabs/textarea/skeleton/sonner/checkbox）
 ├── lib/
 │   ├── supabase.ts       Supabase 客户端
-│   ├── types.ts          共享类型（Slot、PlanSlot、DayPlan、Template、Message）
+│   ├── types.ts          共享类型（小组、成员、Slot、PlanSlot、DayPlan、Template、Message）
+│   ├── groups.ts         当前账号所属小组及三位成员资料
 │   ├── slot-status.ts    状态判定（今天实时口径 getSlotStatus；按日期分流 getSlotStatusForDate；迟到分钟 getLateMinutes）
 │   ├── day-plan.ts       day_plans表读写（ensureDayPlan建行、saveDayPlanSlots写入、fetchDaySlotsForDate只读、mergeTemplateSlotsIntoDay模板同步合并）
 │   ├── day-summary.ts    每日统计（完成率/拖延次数/拖延时长/备注汇总），纯函数
@@ -32,7 +33,8 @@ Next.js + Supabase 的两人协作打卡 Web App。核心是"实时同步"和"�
 │   ├── messages.ts       messages表的CRUD（限量拉取最近留言、发布、Realtime订阅新留言、删除）
 │   └── use-prefers-reduced-motion.ts  检测prefers-reduced-motion的hook（留言飘动效果的降级判断）
 ├── supabase/
-│   └── schema.sql        建表和 RLS policy 的 SQL（导入 Supabase）
+│   ├── schema.sql        全新数据库建表和RLS policy
+│   └── migrations/       已有双人版升级到三人版的迁移SQL
 ├── scripts/
 │   └── deploy-pages.sh   一键构建并部署到GitHub Pages（out/里重新init再强推gh-pages分支）
 ├── docs/
@@ -57,8 +59,20 @@ users
   name (text)
   avatar_url (text nullable)
 
+checkin_groups
+  id (uuid, PK)
+  name (text)
+  owner_id (uuid, FK users.id)
+
+group_members
+  group_id (uuid, FK checkin_groups.id)
+  user_id (uuid, FK users.id, UNIQUE)
+  role ('owner' | 'member')
+  -- 每组最多三人，由数据库触发器限制
+
 templates
   id (uuid, PK)
+  group_id (uuid, FK checkin_groups.id)
   owner_id (uuid, FK users.id)
   day_type ('weekday' | 'weekend')
   slots (jsonb): [{id, start_time, end_time, task}]
@@ -66,11 +80,12 @@ templates
 
 day_plans
   id (uuid, PK)
+  group_id (uuid, FK checkin_groups.id)
   user_id (uuid, FK users.id)
   date (date)
   slots (jsonb): [{id, start_time, end_time, task, done, checked_at, note, photo_url}]
   updated_at
-  UNIQUE(user_id, date)
+  UNIQUE(group_id, user_id, date)
 
 weekly_reviews
   -- PDCA周期目标功能已下线（代码已删），这张表按用户要求保留不删，代码里已经没有任何引用。
@@ -78,10 +93,11 @@ weekly_reviews
 
 messages
   id (uuid, PK)
+  group_id (uuid, FK checkin_groups.id)
   sender_id (uuid, FK users.id)
   content (text)                   -- 留言正文，客户端限40字，DB层不做长度约束（跟随note/review_note的既有惯例）
   created_at (timestamptz)
-  -- 全部公开(select using true)，insert/delete限本人。开了Realtime，配合"留言板飘动效果"
+  -- 只对同组成员公开，insert/delete限本人。开了Realtime，配合留言板飘动效果
   -- 前端只拉最近20条（order by created_at desc limit 20），不做旧数据清理，纯查询层限制
 ```
 
@@ -106,9 +122,11 @@ messages
 - **禁止**把 service_role key 放到前端环境变量。目前项目不需要 service_role
 - `.env.local` 已加入 .gitignore，不进 git
 
-### RLS Policy 原则
+### 小组和RLS Policy原则
 
-两人互相能读对方的 templates 和 day_plans，但只能改自己的。用 `auth.uid() = user_id` 判自己。
+产品是固定三人小组。`group_members`用触发器限制每组最多三人；模板、每日计划、留言都带`group_id`。登录用户只能读取自己所在小组的数据，只能修改自己的模板、计划和留言。成员关系由Supabase SQL迁移维护，前端不提供自行加入或邀请入口。
+
+从双人版升级时，必须先运行`supabase/migrations/20260924_three_person_groups.sql`回填旧数据，再部署三人版前端。迁移脚本要求三个Auth邮箱都已存在，任一账号缺失会整笔回滚。
 
 ### 实时订阅
 
@@ -126,7 +144,7 @@ messages
 
 ### 每日总结
 
-任意一天（含未来）都能点开，`lib/day-summary.ts`的`computeDaySummary`按`past/current/future`三种口径算完成率、拖延次数、拖延时长、备注列表。两人数据在`SummaryCompareTable`逐行对比，数值更优一方高亮，不做"一句话总裁定"。
+任意一天（含未来）都能点开，`lib/day-summary.ts`的`computeDaySummary`按`past/current/future`三种口径算完成率、拖延次数、拖延时长、备注列表。三人数据在`SummaryCompareTable`逐行对比，数值并列最优的成员都会高亮，不做一句话总裁定。
 
 ### PDCA周期目标功能已下线
 
@@ -134,7 +152,7 @@ messages
 
 ### 留言板
 
-主视图固定有一条`MessageBoard`横条（不随`viewDate`/`dateMode`变化或消失），双方随时能发一句话，最近20条全部公开，Realtime同步。展示方式是"偶尔飘过"（间歇性、随机方向、按字数动态算时长），不是静态列表——飘动位移用JS测量文字实际`offsetWidth`算起止点，不能用`translateX`百分比（百分比基准是元素自身宽度不是容器宽度）。`prefers-reduced-motion`必须在组件内单独处理，不能依赖`app/globals.css`的全局降级规则（那条规则把动画时长压到0.01ms，对"终帧=完全划出容器"的动效会导致内容瞬间变空白，比不降级更糟）。
+主视图固定有一条`MessageBoard`横条（不随`viewDate`/`dateMode`变化或消失），三位成员随时能发一句话，前端只取组内最近20条并Realtime同步。展示方式是偶尔飘过（间歇性、随机方向、按字数动态算时长），不是静态列表。飘动位移用JS测量文字实际`offsetWidth`算起止点，不能用`translateX`百分比（百分比基准是元素自身宽度不是容器宽度）。`prefers-reduced-motion`必须在组件内单独处理，不能依赖`app/globals.css`的全局降级规则。
 
 **v5.1修订（真机反馈后）**：原方案"一条播完等8-18秒间隔再播下一条"被用户推翻，改成两条轨道各自独立运作、每隔2-4.5秒尝试往空闲轨道派发新留言，不再有固定间隔——效果上更接近QQ空间评论区那种可能同时有多条内容划过的感觉。`MessageBoard.tsx`内部拆出`FloatingLane`子组件承接单条留言的完整生命周期，靠外层`key={message.id}`保证每次分配新留言时整个remount，`useEffect`空依赖数组天然只跑一次。同时新增`MessageHistoryDialog.tsx`（查看全部留言+删除自己发的留言，走`lib/messages.ts`的`deleteMessage`，RLS的`delete_own_message`策略保证只能删自己的）。
 

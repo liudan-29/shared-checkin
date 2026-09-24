@@ -30,7 +30,7 @@ export function EmptyStatePeer() {
   return (
     <div className="flex flex-col items-center gap-3 py-12">
       <CalendarX2 className="h-12 w-12 text-muted-foreground" />
-      <p className="text-base text-muted-foreground">TA今天还没安排时段</p>
+      <p className="text-base text-muted-foreground">这位成员今天还没安排时段</p>
     </div>
   );
 }
@@ -57,7 +57,7 @@ export function EmptyStateReadonlyMine() {
 }
 
 export function EmptyStateReadonlyPeer() {
-  return <EmptyReadonlyBase text="TA这天没有安排记录" />;
+  return <EmptyReadonlyBase text="这位成员这天没有安排记录" />;
 }
 
 export function EmptyStatePreviewMine({ onEditTemplate }: { onEditTemplate: () => void }) {
@@ -73,5 +73,5 @@ export function EmptyStatePreviewMine({ onEditTemplate }: { onEditTemplate: () =
 }
 
 export function EmptyStatePreviewPeer() {
-  return <EmptyReadonlyBase text="TA这天的模板还没排时段" />;
+  return <EmptyReadonlyBase text="这位成员这天的模板还没排时段" />;
 }

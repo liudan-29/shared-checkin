@@ -24,8 +24,29 @@ export type Profile = {
   avatar_url: string | null;
 };
 
+export type CheckinGroup = {
+  id: string;
+  name: string;
+  owner_id: string | null;
+  created_at: string;
+};
+
+export type GroupMember = {
+  group_id: string;
+  user_id: string;
+  role: "owner" | "member";
+  joined_at: string;
+};
+
+export type GroupContext = {
+  group: CheckinGroup;
+  membership: GroupMember;
+  members: Profile[];
+};
+
 export type Template = {
   id: string;
+  group_id: string;
   owner_id: string;
   day_type: DayType;
   slots: Slot[];
@@ -34,15 +55,17 @@ export type Template = {
 
 export type DayPlan = {
   id: string;
+  group_id: string;
   user_id: string;
   date: string;
   slots: PlanSlot[];
   updated_at: string;
 };
 
-// 留言板：双方互相鼓励的话，全部公开，只取最近的用
+// 留言板：小组成员互相鼓励的话，小组内公开，只取最近的用
 export type Message = {
   id: string;
+  group_id: string;
   sender_id: string;
   content: string;
   created_at: string;

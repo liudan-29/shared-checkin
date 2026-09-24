@@ -1,4 +1,4 @@
-<title>双人打卡 使用手册</title>
+<title>三人打卡 使用手册</title>
 
 <style>
   :root {
@@ -220,8 +220,8 @@
     width: 100%; max-width: 200px; background: var(--card); border-radius: 10px;
     box-shadow: var(--shadow-sm); padding: 12px 14px; font-size: 12px;
   }
-  .mock-compare .hdr { display: grid; grid-template-columns: 1fr 1fr 1fr; text-align: center; font-size: 11px; color: var(--ink-mute); margin-bottom: 6px; }
-  .mock-compare .row { display: grid; grid-template-columns: 1fr 1fr 1fr; align-items: center; margin-bottom: 6px; }
+  .mock-compare .hdr { display: grid; grid-template-columns: 1.1fr repeat(3, .9fr); text-align: center; font-size: 10px; color: var(--ink-mute); margin-bottom: 6px; }
+  .mock-compare .row { display: grid; grid-template-columns: 1.1fr repeat(3, .9fr); align-items: center; margin-bottom: 6px; }
   .mock-compare .row .label { font-size: 11px; color: var(--ink-mute); }
   .mock-compare .row .val { text-align: center; font-family: ui-monospace, monospace; }
   .mock-compare .win { color: var(--accent); font-weight: 700; }
@@ -261,15 +261,15 @@
 
   <div class="hero">
     <div class="stamp"><div class="stamp-inner"><span>打卡</span></div></div>
-    <h1>双人打卡 使用手册</h1>
-    <p>你的拖延，TA看得见</p>
+    <h1>三人打卡 使用手册</h1>
+    <p>你的进度，组员看得见</p>
     <span class="url">liudan-29.github.io/shared-checkin</span>
   </div>
 
   <section>
     <h2>这是什么<span class="eyebrow">01 概览</span></h2>
     <p class="lead">
-      两个人互相监督的每日打卡工具。各自安排今天要做的事，做完了打个卡，对方立刻能看到；谁超时没做，对方那边会显示拖延了多久。不用群里报备，翻开就知道对方进度。
+      三个人互相监督的每日打卡工具。各自安排今天要做的事，做完了打个卡，另外两人立刻能看到；谁超时没做，组员会看到拖延了多久。不用群里报备，打开就知道三个人的进度。
     </p>
   </section>
 
@@ -331,11 +331,11 @@
     <div class="feature">
       <div class="feature-text">
         <h3>产出记录（打卡时写的那句话）</h3>
-        <p>打卡时弹框里写的那句话，会作为备注留在这张卡片上，具体做了什么、进度到哪，两人都能看到，不是打个勾就完事。</p>
+        <p>打卡时弹框里写的那句话，会作为备注留在这张卡片上，具体做了什么、进度到哪，小组内三人都能看到。</p>
         <ul>
           <li>这条备注不是写一次就锁死的，随时能回来改</li>
           <li>点卡片文字部分（有支铅笔图标提示）就能改，包括改这句话、改时间、改任务名，或者整条删掉——打卡前打卡后都能改，已经打过卡的也不例外</li>
-          <li>每日总结里会把两人当天写的备注按时间合并成一条记录</li>
+          <li>每日总结里会把三人当天写的备注按时间合并成一条记录</li>
           <li>只要这句话是新写的或者改过了，保存后会顺手问一句要不要发到留言板（见后面"留言板"），不想发就点"不用了"</li>
         </ul>
       </div>
@@ -373,11 +373,11 @@
   <hr class="punch-divider" />
 
   <section>
-    <h2>看对方进度<span class="eyebrow">04 监督</span></h2>
+    <h2>看组员进度<span class="eyebrow">04 监督</span></h2>
     <div class="feature">
       <div class="feature-text">
-        <p>手机上用顶部我的/TA的切换查看；电脑上两栏并排显示，不用切换。</p>
-        <p>对方打卡的瞬间，这边不用刷新，页面会自动更新，能看到章盖上去的动画。</p>
+        <p>手机上有三位成员的概览条和三个标签页，点名字切换；电脑中屏显示两列，大屏直接显示三列。</p>
+        <p>任意成员打卡的瞬间，另外两人的页面不用刷新就会自动更新。</p>
         <ul>
           <li>顶部有一排小方格，代表当天几个时段，实心蓝色是完成、实心红色是拖延，一眼看出进度</li>
         </ul>
@@ -429,14 +429,14 @@
     <h2>每日总结<span class="eyebrow">06 对比</span></h2>
     <div class="feature">
       <div class="feature-text">
-        <p>点顶部图表图标，弹出这一天两人的对比：完成率、完成几项、拖延几次、拖延多久，谁更好那一栏会亮起来。下面是两人当天写的备注，按时间合并成一条记录。</p>
+        <p>点顶部图表图标，弹出这一天三人的对比：完成率、完成几项、拖延几次、拖延多久，并列最优的成员都会亮起来。下面是三人当天写的备注，按时间合并成一条记录。</p>
         <p>任意一天都能看，包括还没到的未来（虽然那时候通常都是零）。</p>
       </div>
       <div class="feature-mock">
         <div class="mock-compare">
-          <div class="hdr"><span></span><span>我</span><span>TA</span></div>
-          <div class="row"><span class="label">完成率</span><span class="val win">83%</span><span class="val">50%</span></div>
-          <div class="row"><span class="label">拖延次数</span><span class="val win">0次</span><span class="val">2次</span></div>
+          <div class="hdr"><span></span><span>我</span><span>小林</span><span>阿杰</span></div>
+          <div class="row"><span class="label">完成率</span><span class="val win">83%</span><span class="val">50%</span><span class="val">67%</span></div>
+          <div class="row"><span class="label">拖延次数</span><span class="val win">0次</span><span class="val">2次</span><span class="val">1次</span></div>
         </div>
       </div>
     </div>
@@ -446,7 +446,7 @@
 
   <section>
     <h2>留言板<span class="eyebrow">07 互相鼓励</span></h2>
-    <p class="lead">首页固定有一条留言区，跟打卡流程没关系，随时能写一句话给对方鼓劲，两人都能看到。</p>
+    <p class="lead">首页固定有一条留言区，随时能写一句话给组员鼓劲，三人都能看到。打卡产出记录写完后，也可以选择顺手发布到这里。</p>
 
     <div class="feature">
       <div class="feature-text">
@@ -465,7 +465,7 @@
     <div class="feature">
       <div class="feature-text">
         <h3>查看历史 / 删除</h3>
-        <p>点历史图标（时钟样子那个）能看到最近这批留言的完整列表，按时间排好，不用等它飘过来。自己发的每条旁边有删除按钮，点了会先确认一下，选是了才真的删掉，删掉之后对方也看不到了。</p>
+        <p>点历史图标（时钟样子那个）能看到最近这批留言的完整列表，按时间排好，不用等它飘过来。自己发的每条旁边有删除按钮，点了会先确认一下，选是了才真的删掉，删掉之后另外两人也看不到了。</p>
       </div>
       <div class="feature-mock">
         <div class="mock-history">
@@ -509,20 +509,24 @@
       <p>找建账号的人，账号和密码都是在Supabase后台手动建的，App本身没有找回密码的功能。</p>
     </div>
     <div class="faq-item">
-      <h3>为什么看不到对方今天的安排</h3>
-      <p>大概率对方今天还没打开过App。当天的安排是打开App那一刻才生成的，对方没登录过，那天就还没有记录。</p>
+      <h3>新成员登录后提示还没加入小组怎么办</h3>
+      <p>这表示账号已经建好，但还没写入三人小组关系。管理员需要在Supabase里执行三人迁移SQL；完成后重新打开页面即可。产品内暂时没有自行申请加入的入口。</p>
+    </div>
+    <div class="faq-item">
+      <h3>为什么看不到某位成员今天的安排</h3>
+      <p>大概率这位成员今天还没打开过App。当天的安排是打开App那一刻才生成的，对方没登录过，那天就还没有记录。</p>
     </div>
     <div class="faq-item">
       <h3>拖延是怎么算的</h3>
       <p>从时段结束时间开始算，还在时段进行中不算拖延。比如8点到9点的安排，8点半还没做完不算数，9点还没打卡才开始计时。</p>
     </div>
     <div class="faq-item">
-      <h3>对方能看到我的密码或者改我的安排吗</h3>
-      <p>不能。对方只能看你打卡的结果，改不了你的时段，密码只有你自己知道，双方都是各自登录各自的账号。</p>
+      <h3>其他成员能看到我的密码或者改我的安排吗</h3>
+      <p>不能。其他成员只能看你打卡的结果，改不了你的时段，密码只有你自己知道，三个人各自登录自己的账号。</p>
     </div>
     <div class="faq-item">
       <h3>手机和电脑看到的不一样吗</h3>
-      <p>功能一样，手机上是切换标签页看我的/TA的，电脑屏幕够宽会直接左右两栏都显示，不用切换。</p>
+      <p>功能一样。手机上切换三个人的标签页，电脑中屏两列、大屏三列并排显示。</p>
     </div>
     <div class="faq-item">
       <h3>怎么退出登录</h3>
@@ -530,7 +534,7 @@
     </div>
     <div class="faq-item">
       <h3>页面上出现"连接断了，正在重连"是什么意思</h3>
-      <p>网络临时断开导致实时同步暂时收不到对方的更新，App在后台自动重连，一般几秒内恢复，不用手动刷新，恢复后这条提示会自己消失。</p>
+      <p>网络临时断开导致实时同步暂时收不到组员的更新，App在后台自动重连，一般几秒内恢复，不用手动刷新，恢复后这条提示会自己消失。</p>
     </div>
     <div class="faq-item">
       <h3>留言过一会儿就飘走看不见了，是不是丢了</h3>
@@ -542,6 +546,6 @@
     </div>
   </section>
 
-  <footer>双人打卡 · 两个人的每日监督</footer>
+  <footer>三人打卡 · 三个人的每日监督</footer>
 
 </div>

@@ -2,6 +2,7 @@ import { getSupabase } from "./supabase";
 import type { DayType, Slot, Template } from "./types";
 
 export async function fetchTemplate(
+  groupId: string,
   ownerId: string,
   dayType: DayType
 ): Promise<Template | null> {
@@ -9,6 +10,7 @@ export async function fetchTemplate(
   const { data, error } = await supabase
     .from("templates")
     .select("*")
+    .eq("group_id", groupId)
     .eq("owner_id", ownerId)
     .eq("day_type", dayType)
     .maybeSingle();
@@ -17,6 +19,7 @@ export async function fetchTemplate(
 }
 
 export async function upsertTemplate(
+  groupId: string,
   ownerId: string,
   dayType: DayType,
   slots: Slot[]
@@ -25,8 +28,8 @@ export async function upsertTemplate(
   const { error } = await supabase
     .from("templates")
     .upsert(
-      { owner_id: ownerId, day_type: dayType, slots, updated_at: new Date().toISOString() },
-      { onConflict: "owner_id,day_type" }
+      { group_id: groupId, owner_id: ownerId, day_type: dayType, slots, updated_at: new Date().toISOString() },
+      { onConflict: "group_id,owner_id,day_type" }
     );
   if (error) throw error;
 }

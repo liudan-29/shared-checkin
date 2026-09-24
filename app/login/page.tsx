@@ -14,7 +14,7 @@ export default function LoginPage() {
   const { session, loading: sessionLoading } = useSession();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [error, setError] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
@@ -25,19 +25,36 @@ export default function LoginPage() {
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    setError(false);
+    setError(null);
     setSubmitting(true);
     const supabase = getSupabase();
-    const { error: signInError } = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    });
-    setSubmitting(false);
-    if (signInError) {
-      setError(true);
-      return;
+    try {
+      const { error: signInError } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
+      if (signInError) {
+        const errorText = `${signInError.name} ${signInError.message}`.toLowerCase();
+        if (
+          signInError.name === "AuthRetryableFetchError" ||
+          /failed to fetch|network|timeout|load failed/.test(errorText)
+        ) {
+          setError("网络连接失败，请检查网络后重试");
+        } else if (signInError.code === "invalid_credentials") {
+          setError("邮箱或密码不对");
+        } else if (signInError.code === "email_not_confirmed") {
+          setError("这个邮箱还没有完成确认");
+        } else {
+          setError("登录失败，请稍后重试");
+        }
+        return;
+      }
+      router.replace("/");
+    } catch {
+      setError("网络连接失败，请检查网络后重试");
+    } finally {
+      setSubmitting(false);
     }
-    router.replace("/");
   }
 
   return (
@@ -65,9 +82,9 @@ export default function LoginPage() {
               </span>
             </div>
           </div>
-          <h1 className="font-display text-xl text-foreground">双人打卡</h1>
+          <h1 className="font-display text-xl text-foreground">三人打卡</h1>
           <p className="mt-1 font-body text-sm text-muted-foreground">
-            你的拖延，TA看得见
+            你的拖延，组员看得见
           </p>
         </div>
 
@@ -80,7 +97,7 @@ export default function LoginPage() {
               autoComplete="email"
               required
               className="h-12"
-              error={error}
+              error={Boolean(error)}
               value={email}
               onChange={(e) => setEmail(e.target.value)}
             />
@@ -93,7 +110,7 @@ export default function LoginPage() {
               autoComplete="current-password"
               required
               className="h-12"
-              error={error}
+              error={Boolean(error)}
               value={password}
               onChange={(e) => setPassword(e.target.value)}
             />
@@ -102,7 +119,7 @@ export default function LoginPage() {
           {error && (
             <div className="flex items-center gap-2 text-sm text-danger">
               <CircleAlert className="h-4 w-4 shrink-0" />
-              邮箱或密码不对
+              {error}
             </div>
           )}
 
