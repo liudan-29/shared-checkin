@@ -212,3 +212,12 @@
 - 验证：`npx tsc --noEmit`、`npm run lint`、`npm run build:pages`全部通过
 - code-reviewer首轮发现五个阻断项：三人上限并发漏洞、1200px断点错用1280px、移动页签只有40px、公开迁移文件含真实邮箱、组长删除被外键阻断；全部修复后定向复审通过
 - 尚未做登录后三账号真机验收：当前执行环境没有三个真实账号密码，也没有直接执行Supabase DDL的授权。下一步由用户在Supabase SQL Editor运行迁移，确认成功后再部署并进行三账号互相可见与Realtime验收
+
+## 2026-09-25 09:52
+
+- 在Supabase Authentication确认三位正式成员账号：原两位成员加新成员账号均已创建，另外两个历史账号不纳入三人小组，也未擅自删除
+- 为本次迁移生成仅保存在本机的`20260924_three_person_groups.local.sql`，已填入三位成员邮箱；新增`*.local.sql`忽略规则，避免含真实邮箱的执行文件进入公开Git仓库
+- 用户在Supabase SQL Editor执行三人小组迁移，界面返回`Success. No rows returned`，事务已成功提交
+- 重新执行`npm run build:pages`，Next.js编译、Lint、类型检查和静态页面生成全部通过
+- 将三人版构建产物强制推送到`gh-pages`，部署提交为`292d1d7`；首次推送因本地Git压缩阶段无进度，结束已核实的卡死进程后关闭临时部署仓库压缩并显示上传进度，最终推送成功
+- 待完成：等待GitHub Pages CDN刷新并验证线上三人版；三个真实账号的登录、三栏展示和Realtime同步仍需三位用户在各自设备上验收
